@@ -25,6 +25,10 @@ Részletek: [TERV_muller_mod.md](TERV_muller_mod.md). Gyorsabb, mint az AUX-N (n
 - A gombok a terminálon is nevet kapnak (designator)
 - AP módú webes debug oldal, mint a meglévő joysticknál (kikapcsolva alapból)
 
+## 2c. fázis: AUX-N funkció ikonok a saját gépektől
+
+Részletek: [TERV_aux_ikonok.md](TERV_aux_ikonok.md). Első kör: a saját 3 gép küldi a hozzárendelt funkció katalógus-azonosítóját; idegen gépek később, kísérleti alapon.
+
 ## 3. fázis: kényelmi funkciók
 
 - Hozzárendelés-lehallgatás (Auxiliary Assignment Type 2 a busz forgalmából): a kijelző mutatja, melyik bemenetre van funkció kiosztva, és jelzi, ha rejtett (pl. 3 gombos módban a 7-es) bemenetnek van hozzárendelése
