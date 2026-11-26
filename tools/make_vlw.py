@@ -4,7 +4,7 @@ VLW (Processing / TFT_eSPI / LovyanGFX "smooth font") generátor magyar ékezete
 
 Használat:
     python3 tools/make_vlw.py
-Kimenet: src/fonts_hu.h  (PROGMEM tömbök: font_hu16, font_hu22, font_hu40)
+Kimenet: src/fonts_hu.h  (PROGMEM tömbök: font_hu13, font_hu16, font_hu22, font_hu40)
 
 A font: DejaVu Sans Bold (szabad licenc, Bitstream Vera / DejaVu).
 """
@@ -15,7 +15,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-SIZES = [16, 22, 40]
+SIZES = [13, 16, 22, 40]
 
 CHARS = [chr(c) for c in range(32, 127)] + list("ÁÉÍÓÖŐÚÜŰáéíóöőúüű°")
 

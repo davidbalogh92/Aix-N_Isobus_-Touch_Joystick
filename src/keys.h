@@ -12,6 +12,13 @@ struct KeyRect {
 uint8_t layoutCompute(uint8_t layout, int16_t areaX, int16_t areaY, int16_t areaW, int16_t areaH,
                       KeyRect* out, uint8_t maxOut);
 
+// Müller joystick elrendezés: out[0..7] = B1..B8 téglalapja.
+//   B1 | B3 B4
+//   B2 | B5 B6
+//      | B7 B8
+// A bal oszlop és a jobb blokk között szélesebb rés van (mint a valódi joystickon).
+void mullerLayout(int16_t areaX, int16_t areaY, int16_t areaW, int16_t areaH, KeyRect out[8]);
+
 // Melyik gombra esik a pont (a szélein lévő holtsávot levonva). -1 = egyik sem.
 int8_t layoutHitTest(const KeyRect* rects, uint8_t count, int16_t x, int16_t y, int16_t deadzone);
 

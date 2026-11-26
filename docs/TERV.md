@@ -13,7 +13,7 @@
 - [x] CAN figyelés (TWAI, 250k, csak hallgat): forgalom, eszközszám, VT jelenlét
 - [ ] Teszt a valós lapon: színek, érintés pontosság, CAN forgalom a Müller terminállal
 
-## 2. fázis: Müller (ME) mód
+## 2. fázis: Müller (ME) mód (v0.4.0: megépítve, busz teszt hátra)
 
 Részletek: [TERV_muller_mod.md](TERV_muller_mod.md). Gyorsabb, mint az AUX-N (nincs object pool), és a gyári Jobcomputerrel azonnal tesztelhető.
 

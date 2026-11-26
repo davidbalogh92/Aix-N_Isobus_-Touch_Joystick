@@ -26,6 +26,9 @@ jobs:
             ~/.cache/pip
           key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
 
+      - name: Natív tesztek (érintésszűrő, elrendezés, Müller küldő)
+        run: g++ -std=c++17 -Wall -Wextra -Isrc test/native_test.cpp src/keys.cpp src/muller_out.cpp -o native_test && ./native_test
+
       - name: Install PlatformIO + esptool
         run: pip install platformio "esptool<5"
 

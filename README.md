@@ -5,9 +5,14 @@ A kijelző a „gombsor”: 3, 6 vagy 8 gombos elrendezés, fölé cserélhető,
 
 *Készítette: Balogh Dávid & Claude*
 
-## Állapot: 0.3.0, 1. fázis (hardver ébresztés)
+## Állapot: 0.4.0
 
-Ez a verzió még **nem ISOBUS eszköz**: nem jelentkezik be a terminálra, és nem küld semmit a buszra. A célja, hogy a hardver biztosan éljen:
+- **AUX-N mód** (alap): még nem jelentkezik be a terminálra, és nem küld semmit (hardver ébresztés, 1. fázis).
+- **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. 3 fül (TRAIL / Permetezés / Keret) + 8 gomb a joystick formájában, ikonokkal. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
+
+![Müller mód előnézet](docs/muller_elonezet.png)
+
+Közös alapok:
 
 - kijelző + önteszt (színsávok, RGB LED, hang)
 - érintés kalibrálás, a lapon tárolva (NVS)
@@ -31,7 +36,9 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 
 | Mit | Hogyan |
 |---|---|
-| Elrendezés váltás (3→6→8) | BOOT gomb rövid nyomás |
+| Elrendezés váltás (3→6→8) | BOOT gomb rövid nyomás (AUX-N módban) |
+| Müller fül váltás (TRAIL → Permetezés → Keret) | fülre érintés, vagy BOOT rövid nyomás (Müller módban) |
+| Mód: AUX-N / Müller | Beállítások → Mód |
 | Tájolás (fekvő / álló / 180°) | Beállítások → Tájolás (utána újrakalibrál). Álló módban: 3 gomb = 1×3, 6 = 2×3, 8 = 2×4 |
 | CAN diagnosztika | Beállítások → Info: CAN |
 | Beállítások | BOOT gomb 2 mp-ig nyomva |
@@ -63,3 +70,5 @@ Soros konzol: 115200 baud (gombnyomások, CAN statisztika 5 mp-enként).
 - PlatformIO, Arduino keretrendszer, LovyanGFX
 - Magyar ékezetes fontok: `tools/make_vlw.py` generálja a `src/fonts_hu.h`-t (DejaVu Sans Bold)
 - Terv: [docs/TERV.md](docs/TERV.md)
+- Natív (PC) tesztek: `g++ -std=c++17 -Isrc test/native_test.cpp src/keys.cpp src/muller_out.cpp -o t && ./t` (a CI is futtatja)
+- Müller képernyő előnézet PC-n: `tools/icon_preview.cpp` + `tools/icon_preview.py`

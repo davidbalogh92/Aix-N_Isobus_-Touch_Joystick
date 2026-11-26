@@ -17,9 +17,12 @@
 - `src/config.h`: lábak, verzió, érintés paraméterek
 - `src/lgfx_board.h`: LovyanGFX config, panel futásidőben választható (init előtt)
 - `src/keys.*`: elrendezés + érintésszűrő, hardverfüggetlen (natívan tesztelhető)
-- `src/can_monitor.*`: TWAI figyelő (1. fázis: nem küld semmit)
+- `src/can_monitor.*`: TWAI figyelő + canSend + RX hook (magától nem küld; csak a Müller mód)
 - `src/feedback.*`: LED + hang
 - `src/settings.*`: NVS (Preferences)
+- `src/muller_out.*`: Müller AUX-O küldő (address claim, ss=1/2/0, cc, 0xE700), hardverfüggetlen
+- `src/muller_funcs.h`: Müller funkciótábla (ikon, felirat), `src/muller_icons.h`: ikonok (sablon, PC-n is renderelhető)
+- `test/native_test.cpp`: natív tesztek (CI futtatja). Ikon/képernyő változás után frissítsd a `docs/muller_elonezet.png`-t (tools/icon_preview.*)
 - `src/fonts_hu.h`: GENERÁLT (`python3 tools/make_vlw.py`), ne szerkeszd kézzel
 
 ## Müller mód

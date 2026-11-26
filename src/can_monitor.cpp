@@ -12,6 +12,19 @@ static uint32_t s_nodeMask[8]  = {0};   // 256 bites címtérkép
 static uint32_t s_nodeWinStart = 0;
 
 static const uint32_t PGN_VT_STATUS = 0xFE6E;
+static CanRxHook s_hook = nullptr;
+
+void canSetRxHook(CanRxHook h) { s_hook = h; }
+
+bool canSend(uint32_t id, const uint8_t* data, uint8_t len) {
+  if (!s_driverOk || len > 8) return false;
+  twai_message_t m = {};
+  m.extd = 1;
+  m.identifier = id & 0x1FFFFFFF;
+  m.data_length_code = len;
+  memcpy(m.data, data, len);
+  return twai_transmit(&m, 0) == ESP_OK;
+}
 
 bool canBegin() {
   twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT(
@@ -65,6 +78,7 @@ void canLoop() {
         s_lastVtMs = now;
         s_st.vtAddr = sa;
       }
+      if (s_hook) s_hook(id, m.data, m.data_length_code);
     }
   }
 

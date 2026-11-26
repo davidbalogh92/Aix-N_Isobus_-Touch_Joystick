@@ -15,6 +15,10 @@ void settingsLoad() {
   g_set.brightness  = p.getUChar("bright", 192);
   g_set.beep        = p.getBool("beep", true);
   g_set.rotation    = p.getUChar("rot", 1) & 3;
+  g_set.mode        = p.getUChar("mode", MODE_AUXN);
+  g_set.mullerLayer = p.getUChar("mlayer", 1);
+  if (g_set.mode > MODE_MULLER) g_set.mode = MODE_AUXN;
+  if (g_set.mullerLayer > 2) g_set.mullerLayer = 1;
   g_set.calValid    = p.getBool("calok", false);
   if (g_set.calValid) {
     if (p.getBytes("cal", g_set.cal, sizeof(g_set.cal)) != sizeof(g_set.cal)) {
@@ -36,6 +40,8 @@ void settingsSave() {
   p.putUChar("bright", g_set.brightness);
   p.putBool("beep", g_set.beep);
   p.putUChar("rot", g_set.rotation);
+  p.putUChar("mode", g_set.mode);
+  p.putUChar("mlayer", g_set.mullerLayer);
   p.putBool("calok", g_set.calValid);
   p.putBytes("cal", g_set.cal, sizeof(g_set.cal));
   p.end();

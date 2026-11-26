@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
-// 1. fázis: a CAN csak "hallgat" (normál módban, tehát ACK-ol, de NEM küld semmit).
+// A CAN normál módban fut (ACK-ol). Magától nem küld; csak a Müller mód küld a canSend()-del.
 // Megmutatja, hogy él-e a busz, hány eszköz forgalmaz, és látszik-e a VT (terminál).
 
 enum class CanState : uint8_t {
@@ -22,6 +22,13 @@ struct CanStats {
   uint32_t rxErr      = 0;
   uint32_t totalRx    = 0;
 };
+
+// Minden fogadott 29 bites keret továbbadása (pl. Müller küldő: address claim / request kezelés)
+typedef void (*CanRxHook)(uint32_t id, const uint8_t* data, uint8_t len);
+void canSetRxHook(CanRxHook h);
+
+// 29 bites keret küldése (nem blokkol; false, ha nem sikerült sorba tenni)
+bool canSend(uint32_t id, const uint8_t* data, uint8_t len);
 
 bool canBegin();
 void canLoop();

@@ -1,7 +1,9 @@
 # Terv: Müller (ME) mód a Touch Joystickon
 
 Készítette: Balogh Dávid & Claude, 2026-11-26
-Állapot: terv, az építés a hardveres teszt (v0.3.x) után indul.
+Állapot: **v0.4.0-ban megépítve**, a buszon még nincs kipróbálva (a CAN modul csatlakozójára várunk).
+
+![Előnézet](muller_elonezet.png)
 
 ## Cél
 

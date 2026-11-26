@@ -30,6 +30,23 @@ uint8_t layoutCompute(uint8_t layout, int16_t areaX, int16_t areaY, int16_t area
   return n;
 }
 
+void mullerLayout(int16_t areaX, int16_t areaY, int16_t areaW, int16_t areaH, KeyRect out[8]) {
+  const int16_t DIV = 16;   // bal oszlop | jobb blokk elválasztó
+  int16_t cw = (areaW - 2 * MARGIN - DIV - GAP) / 3;
+  int16_t ch = (areaH - 2 * MARGIN - 2 * GAP) / 3;
+  int16_t x0 = areaX + MARGIN;
+  int16_t x1 = x0 + cw + DIV;
+  int16_t x2 = x1 + cw + GAP;
+  int16_t y[3] = {(int16_t)(areaY + MARGIN), (int16_t)(areaY + MARGIN + ch + GAP),
+                  (int16_t)(areaY + MARGIN + 2 * (ch + GAP))};
+  // index: 0=B1 1=B2 2=B3 3=B4 4=B5 5=B6 6=B7 7=B8
+  const int16_t xs[8] = {x0, x0, x1, x2, x1, x2, x1, x2};
+  const int16_t ys[8] = {y[0], y[1], y[0], y[0], y[1], y[1], y[2], y[2]};
+  for (int i = 0; i < 8; i++) {
+    out[i].x = xs[i]; out[i].y = ys[i]; out[i].w = cw; out[i].h = ch;
+  }
+}
+
 int8_t layoutHitTest(const KeyRect* rects, uint8_t count, int16_t x, int16_t y, int16_t deadzone) {
   for (uint8_t i = 0; i < count; i++) {
     const KeyRect& k = rects[i];

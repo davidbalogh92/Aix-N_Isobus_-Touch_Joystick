@@ -1,10 +1,11 @@
 // =============================================================
-//  AUX-N Touch Joystick  -  1. fázis: hardver ébresztés
+//  AUX-N Touch Joystick
 //  - kijelző + önteszt (színsávok, LED, hang)
 //  - érintés kalibrálás (NVS-ben tárolva)
 //  - 3 / 6 / 8 gombos elrendezés (BOOT rövid nyomás váltja)
 //  - gombnyomás visszajelzés: kijelző + kék LED + hang + soros log
-//  - CAN figyelés (250k, csak hallgat): forgalom, eszközszám, VT jelenlét
+//  - CAN figyelés (250k): forgalom, eszközszám, VT jelenlét
+//  - Müller (ME) mód: 3 fül + 8 gomb a joystick formájában, AUX-O küldés (docs/TERV_muller_mod.md)
 //  - beállítások menü (BOOT 2 mp)
 //  Készítette: Balogh Dávid & Claude
 // =============================================================
@@ -16,6 +17,9 @@
 #include "feedback.h"
 #include "can_monitor.h"
 #include "keys.h"
+#include "muller_out.h"
+#include "muller_funcs.h"
+#include "muller_icons.h"
 
 #define RGB565(r, g, b) (uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
 
@@ -29,6 +33,13 @@ static constexpr uint16_t C_DIM      = RGB565(150, 155, 165);
 static constexpr uint16_t C_OK       = RGB565(60, 200, 90);
 static constexpr uint16_t C_WARN     = RGB565(240, 200, 40);
 static constexpr uint16_t C_ERR      = RGB565(240, 60, 50);
+// Müller mód
+static constexpr uint16_t C_MKEY     = RGB565(228, 230, 234);   // világos gomb (napfényben jól látszik)
+static constexpr uint16_t C_MFREE    = RGB565(58, 62, 72);      // kiosztatlan gomb
+static constexpr uint16_t C_ICON     = RGB565(20, 20, 24);
+static constexpr uint16_t C_IBLUE    = RGB565(0, 110, 230);
+static constexpr uint16_t C_IRED     = RGB565(225, 30, 30);
+static constexpr uint16_t C_TAB      = RGB565(52, 58, 70);
 
 static LGFX lcd;
 static inline int16_t SW() { return (int16_t)lcd.width(); }
@@ -58,6 +69,9 @@ enum class Screen : uint8_t { Main, Settings };
 static Screen s_screen = Screen::Main;
 
 static KeyRect s_keys[MAX_KEYS];
+static KeyRect s_tabs[3];
+static MullerAuxOSender s_muller;
+static inline bool isMuller() { return g_set.mode == MODE_MULLER; }
 static uint8_t s_keyCount = 0;
 static int8_t  s_activeKey = -1;
 bool g_keyDown[MAX_KEYS] = {false};   // később ezt olvassa az AUX-N réteg
@@ -70,8 +84,8 @@ static uint32_t s_lastBarMs = 0;
 static uint32_t s_lastTouchMs = 0;
 
 // beállítások menü
-static const uint8_t SET_ITEMS = 10;
-static const uint8_t SET_BACK = 9;
+static const uint8_t SET_ITEMS = 11;
+static const uint8_t SET_BACK = 10;
 static KeyRect s_setRects[SET_ITEMS];
 static int8_t  s_setPressed = -1;
 
@@ -113,13 +127,21 @@ static const char* rotationName(uint8_t r) {
 static void drawStatusBar(bool force) {
   const CanStats& cs = canStats();
   char left[16], mid[48], right[24];
-  snprintf(left, sizeof(left), "%u gomb", g_set.layout);
+  if (isMuller()) snprintf(left, sizeof(left), "Müller");
+  else            snprintf(left, sizeof(left), "%u gomb", g_set.layout);
   if (cs.state == CanState::Ok && cs.vtSeen) {
     snprintf(mid, sizeof(mid), "CAN: OK, VT:%u", cs.vtAddr);
   } else {
     snprintf(mid, sizeof(mid), "%s", canStateText(cs.state));
   }
-  if (cs.state == CanState::Ok && SW() >= 300) {
+  if (isMuller()) {
+    switch (s_muller.state()) {
+      case MullerAuxOSender::State::Claimed:     snprintf(right, sizeof(right), "cím 0x%02X", s_muller.address()); break;
+      case MullerAuxOSender::State::Claiming:    snprintf(right, sizeof(right), "címfoglalás"); break;
+      case MullerAuxOSender::State::CannotClaim: snprintf(right, sizeof(right), "nincs cím"); break;
+      default:                                   snprintf(right, sizeof(right), "ki"); break;
+    }
+  } else if (cs.state == CanState::Ok && SW() >= 300) {
     snprintf(right, sizeof(right), "%u eszköz", cs.nodes);
   } else {
     snprintf(right, sizeof(right), "%s", "");
@@ -144,12 +166,67 @@ static void drawStatusBar(bool force) {
   lcd.drawString(left, 6, STATUS_H / 2);
   lcd.setTextColor(stc, C_BAR);
   lcd.drawString(mid, 80, STATUS_H / 2);
-  lcd.setTextColor(C_DIM, C_BAR);
+  lcd.setTextColor(isMuller() ? (s_muller.claimed() ? C_OK : C_WARN) : C_DIM, C_BAR);
   lcd.setTextDatum(lgfx::textdatum::middle_right);
   lcd.drawString(right, SW() - 4, STATUS_H / 2);
 }
 
+// ---------------- Müller képernyő ----------------
+// Rajzoló adapter a muller_icons.h sablonhoz
+struct LcdIconGfx {
+  void wideLine(float x0, float y0, float x1, float y1, float r, uint16_t c) { lcd.drawWideLine(x0, y0, x1, y1, r, c); }
+  void fillTri(int x0, int y0, int x1, int y1, int x2, int y2, uint16_t c) { lcd.fillTriangle(x0, y0, x1, y1, x2, y2, c); }
+  void fillRect(int x, int y, int w, int h, uint16_t c) { lcd.fillRect(x, y, w, h, c); }
+  void ring(int x, int y, int r, float th, uint16_t c) {
+    int t = (int)(th + 0.5f);
+    if (t < 1) t = 1;
+    for (int rr = r - t; rr <= r + t; rr++) if (rr > 0) lcd.drawCircle(x, y, rr, c);
+  }
+  void text(const char* str, int cx, int cy, float u, uint16_t fg, uint16_t bg) {
+    drawCentered(str, cx, cy, u < 7 ? font_hu13 : font_hu16, fg, bg);
+  }
+};
+
+static int16_t tabH() { return SH() >= 300 ? 46 : 38; }
+
+static void drawMullerTabs() {
+  lcd.fillRect(0, STATUS_H, SW(), tabH(), C_BG);
+  const int16_t gap = 6;
+  const int16_t tw = (SW() - 4 * gap) / 3;
+  for (uint8_t i = 0; i < 3; i++) {
+    s_tabs[i].x = gap + i * (tw + gap);
+    s_tabs[i].y = STATUS_H + 4;
+    s_tabs[i].w = tw;
+    s_tabs[i].h = tabH() - 8;
+    bool on = (i == g_set.mullerLayer);
+    uint16_t c = on ? C_KEY_ON : C_TAB;
+    lcd.fillRoundRect(s_tabs[i].x, s_tabs[i].y, s_tabs[i].w, s_tabs[i].h, 8, c);
+    drawCentered(mullerLayerName(i), s_tabs[i].x + tw / 2, s_tabs[i].y + s_tabs[i].h / 2,
+                 tw < 130 ? font_hu13 : font_hu16, on ? RGB565(0, 0, 0) : C_TEXT, c);
+  }
+}
+
+static void drawMullerKey(uint8_t b, bool on) {
+  const KeyRect& r = s_keys[b];
+  uint8_t in = mullerInputOf(g_set.mullerLayer, b + 1);
+  const MFunc& f = mullerFunc(in);
+  bool asg = mullerAssigned(in);
+  uint16_t fill = !asg ? C_MFREE : (on ? C_KEY_ON : C_MKEY);
+  lcd.fillRoundRect(r.x, r.y, r.w, r.h, 10, fill);
+  MIconColors k{asg ? C_ICON : C_DIM, C_IBLUE, C_IRED, fill};
+  bool label = asg && r.h >= 80;
+  int iconH = r.h - (label ? 18 : 0);
+  int sz = (int)((r.w < iconH ? r.w : iconH) * 0.78f);
+  LcdIconGfx g;
+  drawMullerIcon(g, f.icon, r.x + r.w / 2, r.y + iconH / 2 + (label ? 2 : 0), sz, k);
+  if (label) drawCentered(f.label, r.x + r.w / 2, r.y + r.h - 11, font_hu13, C_ICON, fill);
+  char nb[4];
+  snprintf(nb, sizeof(nb), "B%u", b + 1);
+  drawCentered(nb, r.x + 14, r.y + 11, font_hu13, asg ? RGB565(120, 120, 130) : C_DIM, fill);
+}
+
 static void drawKey(uint8_t i, bool on) {
+  if (isMuller()) { drawMullerKey(i, on); return; }
   const KeyRect& k = s_keys[i];
   uint16_t fill = on ? C_KEY_ON : C_KEY;
   lcd.fillRoundRect(k.x, k.y, k.w, k.h, 10, fill);
@@ -161,8 +238,14 @@ static void drawKey(uint8_t i, bool on) {
 
 static void drawMain() {
   lcd.fillScreen(C_BG);
-  s_keyCount = layoutCompute(g_set.layout, 0, STATUS_H, SW(), SH() - STATUS_H,
-                             s_keys, MAX_KEYS);
+  if (isMuller()) {
+    drawMullerTabs();
+    mullerLayout(0, STATUS_H + tabH(), SW(), SH() - STATUS_H - tabH(), s_keys);
+    s_keyCount = 8;
+  } else {
+    s_keyCount = layoutCompute(g_set.layout, 0, STATUS_H, SW(), SH() - STATUS_H,
+                               s_keys, MAX_KEYS);
+  }
   for (uint8_t i = 0; i < s_keyCount; i++) drawKey(i, (int8_t)i == s_activeKey);
   drawStatusBar(true);
 }
@@ -182,8 +265,9 @@ static void settingLabel(uint8_t i, char* buf, size_t n) {
     case 5: snprintf(buf, n, "Fény: %u%%", (unsigned)((g_set.brightness * 100 + 127) / 255)); break;
     case 6: snprintf(buf, n, "Hang: %s", g_set.beep ? "Be" : "Ki"); break;
     case 7: snprintf(buf, n, "Tájolás: %s", rotationName(g_set.rotation)); break;
-    case 8: snprintf(buf, n, "Info: CAN"); break;
-    case 9: snprintf(buf, n, "Vissza"); break;
+    case 8: snprintf(buf, n, "Mód: %s", isMuller() ? "Müller" : "AUX-N"); break;
+    case 9: snprintf(buf, n, "Info: CAN"); break;
+    case 10: snprintf(buf, n, "Vissza"); break;
   }
 }
 
@@ -318,22 +402,59 @@ static void splash() {
 // =============================================================
 //  Logika
 // =============================================================
+// Az aktív gomb váltása. Müller módban k = B1..B8 indexe (0..7); a küldést is itt kezeljük,
+// így minden elengedési út (felengedés, ugrás, képernyőváltás, hiba) ss=0-t küld.
 static void setActiveKey(int8_t k) {
   if (k == s_activeKey) return;
   int8_t old = s_activeKey;
   s_activeKey = k;
+  uint32_t now = millis();
   if (old >= 0) {
-    g_keyDown[old] = false;
-    Serial.printf("[KEY] %d FEL\n", old + 1);
+    if (isMuller()) {
+      s_muller.release(now);
+      Serial.printf("[ME] B%d FEL\n", old + 1);
+    } else {
+      g_keyDown[old] = false;
+      Serial.printf("[KEY] %d FEL\n", old + 1);
+    }
     if (s_screen == Screen::Main && old < s_keyCount) drawKey(old, false);
   }
   if (k >= 0) {
-    g_keyDown[k] = true;
-    Serial.printf("[KEY] %d LE\n", k + 1);
+    if (isMuller()) {
+      uint8_t in = mullerInputOf(g_set.mullerLayer, k + 1);
+      bool sent = s_muller.press(in, now);
+      Serial.printf("[ME] %s B%d (gombszám %u, %s)%s\n", mullerLayerName(g_set.mullerLayer), k + 1, in,
+                    mullerFunc(in).label, sent ? "" : "  -> NINCS ELKÜLDVE (nincs cím)");
+    } else {
+      g_keyDown[k] = true;
+      Serial.printf("[KEY] %d LE\n", k + 1);
+    }
     if (s_screen == Screen::Main) drawKey(k, true);
     fbBeep(2400, 25);
   }
   fbKeyActive(k >= 0);
+}
+
+static void setMullerLayer(uint8_t layer) {
+  if (layer > 2) layer = 0;
+  setActiveKey(-1);
+  g_set.mullerLayer = layer;
+  settingsSave();
+  Serial.printf("[ME] fül: %s\n", mullerLayerName(layer));
+  drawMullerTabs();
+  for (uint8_t i = 0; i < 8; i++) drawMullerKey(i, false);
+}
+
+static void applyMode() {
+  if (isMuller()) {
+    if (s_muller.state() == MullerAuxOSender::State::Off) {
+      s_muller.begin(MullerAuxOSender::DEFAULT_IDENTITY, MullerAuxOSender::DEFAULT_ADDRESS, millis());
+      Serial.println("[ME] Müller mód BE, címfoglalás 0x90");
+    }
+  } else if (s_muller.state() != MullerAuxOSender::State::Off) {
+    s_muller.stop(millis());
+    Serial.println("[ME] Müller mód KI");
+  }
 }
 
 static void enterScreen(Screen s) {
@@ -359,6 +480,7 @@ static void showCanInfo() {
   while (true) {
     canLoop();
     fbLoop();
+    s_muller.update(millis());
     if (lcd.getTouch(&x, &y) || digitalRead(PIN_BOOT) == LOW) break;
     uint32_t now = millis();
     if (now - last < 300) { delay(5); continue; }
@@ -373,7 +495,9 @@ static void showCanInfo() {
     snprintf(l[4], 40, "Hibaszámláló TX/RX: %lu / %lu", (unsigned long)cs.txErr, (unsigned long)cs.rxErr);
     snprintf(l[5], 40, "Összes frame: %lu", (unsigned long)cs.totalRx);
     snprintf(l[6], 40, "Lábak: TX=IO%d  RX=IO%d", PIN_CAN_TX, PIN_CAN_RX);
-    snprintf(l[7], 40, "Sebesség: 250 kbit/s");
+    if (!isMuller())                snprintf(l[7], 40, "Müller mód: ki");
+    else if (s_muller.claimed())    snprintf(l[7], 40, "Müller: cím 0x%02X", s_muller.address());
+    else                            snprintf(l[7], 40, "Müller: nincs cím");
     useFont(font_hu16);
     lcd.setTextDatum(lgfx::textdatum::middle_left);
     for (int i = 0; i < 8; i++) {
@@ -434,6 +558,10 @@ static void settingAction(uint8_t i) {
       drawSettings();
       return;
     case 8:
+      g_set.mode = isMuller() ? MODE_AUXN : MODE_MULLER;
+      applyMode();
+      break;
+    case 9:
       showCanInfo();
       drawSettings();
       return;
@@ -452,7 +580,21 @@ static void handleTouch(uint32_t now) {
   bool changed = s_touch.update(touched, (int16_t)x, (int16_t)y, now);
   if (!changed) return;
 
-  if (s_screen == Screen::Main) {
+  if (s_screen == Screen::Main && isMuller()) {
+    if (s_touch.pressed()) {
+      int8_t t = layoutHitTest(s_tabs, 3, s_touch.x(), s_touch.y(), 2);
+      if (t >= 0) {
+        if (t != g_set.mullerLayer) { fbBeep(1800, 30); setMullerLayer(t); }
+        return;
+      }
+      int8_t b = layoutHitTest(s_keys, 8, s_touch.x(), s_touch.y(), BUTTON_DEADZONE);
+      if (b >= 0 && !mullerAssigned(mullerInputOf(g_set.mullerLayer, b + 1))) b = -1;  // szabad gomb
+      setActiveKey(b);
+    } else {
+      if (s_touch.blocked()) Serial.println("[TOUCH] ugrás tartás közben -> elengedve");
+      setActiveKey(-1);
+    }
+  } else if (s_screen == Screen::Main) {
     if (s_touch.pressed()) {
       setActiveKey(layoutHitTest(s_keys, s_keyCount, s_touch.x(), s_touch.y(), BUTTON_DEADZONE));
     } else {
@@ -492,7 +634,10 @@ static void handleBoot(uint32_t now) {
     uint32_t dur = now - s_bootT0;
     if (!s_bootLongFired && dur >= 40 && dur < 800) {
       if (s_screen == Screen::Main) {
-        if (s_activeKey < 0) {
+        if (s_activeKey < 0 && isMuller()) {
+          fbBeep(1800, 40);
+          setMullerLayer((g_set.mullerLayer + 1) % 3);
+        } else if (s_activeKey < 0) {
           g_set.layout = nextLayout(g_set.layout);
           settingsSave();
           Serial.printf("[UI] elrendezés: %u gomb\n", g_set.layout);
@@ -526,9 +671,9 @@ void setup() {
 
   pinMode(PIN_BOOT, INPUT_PULLUP);
   settingsLoad();
-  Serial.printf("[SET] panel=%s invert=%d bgr=%d layout=%u cal=%d\n",
+  Serial.printf("[SET] panel=%s invert=%d bgr=%d layout=%u cal=%d mód=%s\n",
                 g_set.panelSt7789 ? "ST7789" : "ILI9341", g_set.invert, g_set.bgr,
-                g_set.layout, g_set.calValid);
+                g_set.layout, g_set.calValid, g_set.mode == MODE_MULLER ? "Müller" : "AUX-N");
 
   fbBegin();
 
@@ -542,6 +687,9 @@ void setup() {
   splash();
 
   canBegin();
+  canSetRxHook([](uint32_t id, const uint8_t* d, uint8_t len) { s_muller.handleFrame(id, d, len, millis()); });
+  s_muller.send = [](uint32_t id, const uint8_t* d, uint8_t len) { return canSend(id, d, len); };
+  applyMode();
   enterScreen(Screen::Main);
 }
 
@@ -550,6 +698,13 @@ void loop() {
 
   canLoop();
   fbLoop();
+
+  // Müller küldő: tartás-ismétlés (200 ms) és életjel. Itt, a loop elején, nem blokkolva.
+  s_muller.update(now);
+  if (isMuller() && s_activeKey >= 0 && canStats().state == CanState::BusOff) {
+    Serial.println("[ME] CAN bus-off -> elengedés");
+    setActiveKey(-1);
+  }
 
   if (now - s_lastTouchMs >= TOUCH_SAMPLE_MS) {
     s_lastTouchMs = now;
