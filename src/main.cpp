@@ -31,6 +31,8 @@ static constexpr uint16_t C_WARN     = RGB565(240, 200, 40);
 static constexpr uint16_t C_ERR      = RGB565(240, 60, 50);
 
 static LGFX lcd;
+static inline int16_t SW() { return (int16_t)lcd.width(); }
+static inline int16_t SH() { return (int16_t)lcd.height(); }
 
 #if defined(BOARD_E32R35T)
 static const bool PANEL_SELECTABLE = false;
@@ -68,7 +70,8 @@ static uint32_t s_lastBarMs = 0;
 static uint32_t s_lastTouchMs = 0;
 
 // beállítások menü
-static const uint8_t SET_ITEMS = 8;
+static const uint8_t SET_ITEMS = 10;
+static const uint8_t SET_BACK = 9;
 static KeyRect s_setRects[SET_ITEMS];
 static int8_t  s_setPressed = -1;
 
@@ -88,6 +91,25 @@ static void drawCentered(const char* txt, int16_t x, int16_t y, const uint8_t* f
   lcd.drawString(txt, x, y);
 }
 
+// Kredit: ha keskeny a kijelző (álló), két sorban
+static void drawCredit(int16_t yCenter, uint16_t fg) {
+  if (SW() >= 340) {
+    drawCentered(FW_CREDIT, SW() / 2, yCenter, font_hu16, fg, C_BG);
+  } else {
+    drawCentered("Készítette:", SW() / 2, yCenter - 18, font_hu16, fg, C_BG);
+    drawCentered("Balogh Dávid & Claude", SW() / 2, yCenter, font_hu16, fg, C_BG);
+  }
+}
+
+static const char* rotationName(uint8_t r) {
+  switch (r & 3) {
+    case 0: return "Álló";
+    case 1: return "Fekvő";
+    case 2: return "Álló 180°";
+    default: return "Fekvő 180°";
+  }
+}
+
 static void drawStatusBar(bool force) {
   const CanStats& cs = canStats();
   char left[16], mid[48], right[24];
@@ -97,7 +119,7 @@ static void drawStatusBar(bool force) {
   } else {
     snprintf(mid, sizeof(mid), "%s", canStateText(cs.state));
   }
-  if (cs.state == CanState::Ok) {
+  if (cs.state == CanState::Ok && SW() >= 300) {
     snprintf(right, sizeof(right), "%u eszköz", cs.nodes);
   } else {
     snprintf(right, sizeof(right), "%s", "");
@@ -115,7 +137,7 @@ static void drawStatusBar(bool force) {
     default:                     stc = C_ERR; break;
   }
 
-  lcd.fillRect(0, 0, SCREEN_W, STATUS_H, C_BAR);
+  lcd.fillRect(0, 0, SW(), STATUS_H, C_BAR);
   useFont(font_hu16);
   lcd.setTextColor(C_TEXT, C_BAR);
   lcd.setTextDatum(lgfx::textdatum::middle_left);
@@ -124,7 +146,7 @@ static void drawStatusBar(bool force) {
   lcd.drawString(mid, 80, STATUS_H / 2);
   lcd.setTextColor(C_DIM, C_BAR);
   lcd.setTextDatum(lgfx::textdatum::middle_right);
-  lcd.drawString(right, SCREEN_W - 4, STATUS_H / 2);
+  lcd.drawString(right, SW() - 4, STATUS_H / 2);
 }
 
 static void drawKey(uint8_t i, bool on) {
@@ -139,7 +161,7 @@ static void drawKey(uint8_t i, bool on) {
 
 static void drawMain() {
   lcd.fillScreen(C_BG);
-  s_keyCount = layoutCompute(g_set.layout, 0, STATUS_H, SCREEN_W, SCREEN_H - STATUS_H,
+  s_keyCount = layoutCompute(g_set.layout, 0, STATUS_H, SW(), SH() - STATUS_H,
                              s_keys, MAX_KEYS);
   for (uint8_t i = 0; i < s_keyCount; i++) drawKey(i, (int8_t)i == s_activeKey);
   drawStatusBar(true);
@@ -159,13 +181,15 @@ static void settingLabel(uint8_t i, char* buf, size_t n) {
     case 4: snprintf(buf, n, "Szín: %s", g_set.bgr ? "BGR" : "RGB"); break;
     case 5: snprintf(buf, n, "Fény: %u%%", (unsigned)((g_set.brightness * 100 + 127) / 255)); break;
     case 6: snprintf(buf, n, "Hang: %s", g_set.beep ? "Be" : "Ki"); break;
-    case 7: snprintf(buf, n, "Vissza"); break;
+    case 7: snprintf(buf, n, "Tájolás: %s", rotationName(g_set.rotation)); break;
+    case 8: snprintf(buf, n, "Info: CAN"); break;
+    case 9: snprintf(buf, n, "Vissza"); break;
   }
 }
 
 static void drawSettingItem(uint8_t i, bool on) {
   const KeyRect& k = s_setRects[i];
-  uint16_t fill = on ? C_KEY_ON : (i == 7 ? RGB565(40, 90, 60) : C_KEY);
+  uint16_t fill = on ? C_KEY_ON : (i == SET_BACK ? RGB565(40, 90, 60) : C_KEY);
   lcd.fillRoundRect(k.x, k.y, k.w, k.h, 8, fill);
   lcd.drawRoundRect(k.x, k.y, k.w, k.h, 8, C_KEY_EDGE);
   char buf[32];
@@ -175,18 +199,19 @@ static void drawSettingItem(uint8_t i, bool on) {
 
 static void drawSettings() {
   lcd.fillScreen(C_BG);
-  lcd.fillRect(0, 0, SCREEN_W, STATUS_H, C_BAR);
+  lcd.fillRect(0, 0, SW(), STATUS_H, C_BAR);
   useFont(font_hu16);
   lcd.setTextColor(C_TEXT, C_BAR);
   lcd.setTextDatum(lgfx::textdatum::middle_left);
   lcd.drawString("Beállítások", 6, STATUS_H / 2);
   lcd.setTextColor(C_DIM, C_BAR);
   lcd.setTextDatum(lgfx::textdatum::middle_right);
-  lcd.drawString("v" FW_VERSION, SCREEN_W - 6, STATUS_H / 2);
+  lcd.drawString("v" FW_VERSION, SW() - 6, STATUS_H / 2);
 
   const int16_t top = STATUS_H + 6, footer = 22, gap = 6;
-  const int16_t w = (SCREEN_W - 3 * gap) / 2;
-  const int16_t h = (SCREEN_H - top - footer - 4 * gap) / 4;
+  const int16_t w = (SW() - 3 * gap) / 2;
+  const int16_t rows = (SET_ITEMS + 1) / 2;
+  const int16_t h = (SH() - top - footer - rows * gap) / rows;
   for (uint8_t i = 0; i < SET_ITEMS; i++) {
     s_setRects[i].x = gap + (i % 2) * (w + gap);
     s_setRects[i].y = top + (i / 2) * (h + gap);
@@ -194,7 +219,7 @@ static void drawSettings() {
     s_setRects[i].h = h;
     drawSettingItem(i, false);
   }
-  drawCentered(FW_CREDIT, SCREEN_W / 2, SCREEN_H - footer / 2 - 1, font_hu16, C_DIM, C_BG);
+  drawCredit(SH() - footer / 2 - 1, C_DIM);
 }
 
 // =============================================================
@@ -203,10 +228,10 @@ static void drawSettings() {
 static void selfTest() {
   const char* names[4] = {"PIROS", "ZÖLD", "KÉK", "FEHÉR"};
   const uint16_t cols[4] = {RGB565(255, 0, 0), RGB565(0, 255, 0), RGB565(0, 0, 255), RGB565(255, 255, 255)};
-  const int16_t w = SCREEN_W / 4;
+  const int16_t w = SW() / 4;
   for (int i = 0; i < 4; i++) {
-    lcd.fillRect(i * w, 0, w, SCREEN_H, cols[i]);
-    drawCentered(names[i], i * w + w / 2, SCREEN_H / 2, font_hu16,
+    lcd.fillRect(i * w, 0, w, SH(), cols[i]);
+    drawCentered(names[i], i * w + w / 2, SH() / 2, font_hu16,
                  i == 3 ? RGB565(0, 0, 0) : RGB565(255, 255, 255), cols[i]);
   }
   fbLedRaw(true, false, false);  delay(250);
@@ -220,9 +245,9 @@ static void selfTest() {
 
 static void doCalibrate() {
   lcd.fillScreen(C_BG);
-  drawCentered("Érintés kalibrálás", SCREEN_W / 2, SCREEN_H / 2 - 30, font_hu22, C_TEXT, C_BG);
-  drawCentered("Érintsd meg sorban", SCREEN_W / 2, SCREEN_H / 2 + 10, font_hu16, C_DIM, C_BG);
-  drawCentered("a sarkokban lévő nyilak hegyét", SCREEN_W / 2, SCREEN_H / 2 + 32, font_hu16, C_DIM, C_BG);
+  drawCentered("Érintés kalibrálás", SW() / 2, SH() / 2 - 30, font_hu22, C_TEXT, C_BG);
+  drawCentered("Érintsd meg sorban", SW() / 2, SH() / 2 + 10, font_hu16, C_DIM, C_BG);
+  drawCentered("a nyilak hegyét", SW() / 2, SH() / 2 + 32, font_hu16, C_DIM, C_BG);
   delay(1500);
   forgetFont();
   const uint16_t fg = RGB565(255, 255, 255), bg = C_BG;
@@ -249,15 +274,15 @@ static void blinkPanelCode(bool st7789) {
 
 static void splash() {
   lcd.fillScreen(C_BG);
-  const int16_t cy = SCREEN_H / 2;
-  drawCentered("AUX-N", SCREEN_W / 2, cy - 72, font_hu40, C_KEY_ON, C_BG);
-  drawCentered("Touch Joystick", SCREEN_W / 2, cy - 32, font_hu22, C_TEXT, C_BG);
-  drawCentered("v" FW_VERSION "  " BOARD_NAME, SCREEN_W / 2, cy - 6, font_hu16, C_DIM, C_BG);
-  drawCentered("Érintsd meg 1 mp-ig: kalibrálás", SCREEN_W / 2, cy + 30, font_hu16, C_DIM, C_BG);
+  const int16_t cy = SH() / 2;
+  drawCentered("AUX-N", SW() / 2, cy - 72, font_hu40, C_KEY_ON, C_BG);
+  drawCentered("Touch Joystick", SW() / 2, cy - 32, font_hu22, C_TEXT, C_BG);
+  drawCentered("v" FW_VERSION "  " BOARD_NAME, SW() / 2, cy - 6, font_hu16, C_DIM, C_BG);
+  drawCentered("Érintés 1 mp: kalibrálás", SW() / 2, cy + 30, font_hu16, C_DIM, C_BG);
 #if !defined(BOARD_E32R35T)
-  drawCentered("BOOT 2 mp: panel típus váltás", SCREEN_W / 2, cy + 52, font_hu16, C_DIM, C_BG);
+  drawCentered("BOOT 2 mp: panel váltás", SW() / 2, cy + 52, font_hu16, C_DIM, C_BG);
 #endif
-  drawCentered(FW_CREDIT, SCREEN_W / 2, SCREEN_H - 24, font_hu16, C_TEXT, C_BG);
+  drawCredit(SH() - 24, C_TEXT);
 
   uint32_t t0 = millis(), touchT0 = 0, bootT0 = 0;
   bool wantCal = false;
@@ -318,6 +343,50 @@ static void enterScreen(Screen s) {
   if (s == Screen::Main) drawMain(); else drawSettings();
 }
 
+// CAN diagnosztika képernyő: érintésre vagy BOOT-ra kilép
+static void showCanInfo() {
+  int32_t x, y;
+  while (lcd.getTouch(&x, &y)) delay(10);   // előbb engedje fel
+  lcd.fillScreen(C_BG);
+  lcd.fillRect(0, 0, SW(), STATUS_H, C_BAR);
+  useFont(font_hu16);
+  lcd.setTextColor(C_TEXT, C_BAR);
+  lcd.setTextDatum(lgfx::textdatum::middle_left);
+  lcd.drawString("CAN diagnosztika", 6, STATUS_H / 2);
+  drawCentered("Érintés: vissza", SW() / 2, SH() - 14, font_hu16, C_DIM, C_BG);
+
+  uint32_t last = 0;
+  while (true) {
+    canLoop();
+    fbLoop();
+    if (lcd.getTouch(&x, &y) || digitalRead(PIN_BOOT) == LOW) break;
+    uint32_t now = millis();
+    if (now - last < 300) { delay(5); continue; }
+    last = now;
+    const CanStats& cs = canStats();
+    char l[8][40];
+    snprintf(l[0], 40, "%s", canStateText(cs.state));
+    snprintf(l[1], 40, "Forgalom: %lu frame/s", (unsigned long)cs.fps);
+    snprintf(l[2], 40, "Eszközök: %u", cs.nodes);
+    if (cs.vtSeen) snprintf(l[3], 40, "VT (terminál): cím %u", cs.vtAddr);
+    else           snprintf(l[3], 40, "VT (terminál): nem látszik");
+    snprintf(l[4], 40, "Hibaszámláló TX/RX: %lu / %lu", (unsigned long)cs.txErr, (unsigned long)cs.rxErr);
+    snprintf(l[5], 40, "Összes frame: %lu", (unsigned long)cs.totalRx);
+    snprintf(l[6], 40, "Lábak: TX=IO%d  RX=IO%d", PIN_CAN_TX, PIN_CAN_RX);
+    snprintf(l[7], 40, "Sebesség: 250 kbit/s");
+    useFont(font_hu16);
+    lcd.setTextDatum(lgfx::textdatum::middle_left);
+    for (int i = 0; i < 8; i++) {
+      int16_t yy = STATUS_H + 18 + i * 24;
+      lcd.fillRect(0, yy - 11, SW(), 22, C_BG);
+      lcd.setTextColor(i == 0 ? (cs.state == CanState::Ok ? C_OK : C_WARN) : C_TEXT, C_BG);
+      lcd.drawString(l[i], 8, yy);
+    }
+  }
+  while (lcd.getTouch(&x, &y) || digitalRead(PIN_BOOT) == LOW) delay(10);
+  delay(100);
+}
+
 static void settingAction(uint8_t i) {
   switch (i) {
     case 0:
@@ -336,7 +405,7 @@ static void settingAction(uint8_t i) {
       else        { g_set.bgr = !g_set.bgr; }
       settingsSave();
       lcd.fillScreen(C_BG);
-      drawCentered("Újraindítás...", SCREEN_W / 2, SCREEN_H / 2, font_hu22, C_TEXT, C_BG);
+      drawCentered("Újraindítás...", SW() / 2, SH() / 2, font_hu22, C_TEXT, C_BG);
       delay(600);
       ESP.restart();
       return;
@@ -357,6 +426,18 @@ static void settingAction(uint8_t i) {
       g_set.beep = !g_set.beep;
       break;
     case 7:
+      g_set.rotation = nextRotation(g_set.rotation);
+      settingsSave();
+      lcd.setRotation(g_set.rotation);
+      setActiveKey(-1);
+      doCalibrate();          // új tájolásnál újrakalibrálunk
+      drawSettings();
+      return;
+    case 8:
+      showCanInfo();
+      drawSettings();
+      return;
+    case SET_BACK:
       settingsSave();
       enterScreen(Screen::Main);
       return;
@@ -453,7 +534,7 @@ void setup() {
 
   lcd.selectPanel(g_set.panelSt7789, g_set.invert, g_set.bgr);
   lcd.init();
-  lcd.setRotation(1);           // fekvő, 320x240
+  lcd.setRotation(g_set.rotation);
   lcd.setBrightness(g_set.brightness);
   if (g_set.calValid) lcd.setTouchCalibrate(g_set.cal);
 

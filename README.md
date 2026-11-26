@@ -5,7 +5,7 @@ A kijelző a „gombsor”: 3, 6 vagy 8 gombos elrendezés, fölé cserélhető,
 
 *Készítette: Balogh Dávid & Claude*
 
-## Állapot: 0.2.0, 1. fázis (hardver ébresztés)
+## Állapot: 0.3.0, 1. fázis (hardver ébresztés)
 
 Ez a verzió még **nem ISOBUS eszköz**: nem jelentkezik be a terminálra, és nem küld semmit a buszra. A célja, hogy a hardver biztosan éljen:
 
@@ -32,6 +32,8 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 | Mit | Hogyan |
 |---|---|
 | Elrendezés váltás (3→6→8) | BOOT gomb rövid nyomás |
+| Tájolás (fekvő / álló / 180°) | Beállítások → Tájolás (utána újrakalibrál). Álló módban: 3 gomb = 1×3, 6 = 2×3, 8 = 2×4 |
+| CAN diagnosztika | Beállítások → Info: CAN |
 | Beállítások | BOOT gomb 2 mp-ig nyomva |
 | Kalibrálás | a nyitóképen 1 mp-ig érintsd a kijelzőt, vagy Beállítások → Kalibrálás |
 | Panel típus (csak 2.8": ILI9341 ↔ ST7789) | a nyitóképen BOOT 2 mp (vakon is megy, LED: 1 villanás = ILI9341, 2 = ST7789), vagy Beállítások |

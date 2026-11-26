@@ -14,6 +14,7 @@ void settingsLoad() {
   g_set.bgr         = p.getBool("bgr", false);
   g_set.brightness  = p.getUChar("bright", 192);
   g_set.beep        = p.getBool("beep", true);
+  g_set.rotation    = p.getUChar("rot", 1) & 3;
   g_set.calValid    = p.getBool("calok", false);
   if (g_set.calValid) {
     if (p.getBytes("cal", g_set.cal, sizeof(g_set.cal)) != sizeof(g_set.cal)) {
@@ -34,6 +35,7 @@ void settingsSave() {
   p.putBool("bgr", g_set.bgr);
   p.putUChar("bright", g_set.brightness);
   p.putBool("beep", g_set.beep);
+  p.putUChar("rot", g_set.rotation);
   p.putBool("calok", g_set.calValid);
   p.putBytes("cal", g_set.cal, sizeof(g_set.cal));
   p.end();
@@ -43,4 +45,13 @@ uint8_t nextLayout(uint8_t cur) {
   if (cur == 3) return 6;
   if (cur == 6) return 8;
   return 3;
+}
+
+uint8_t nextRotation(uint8_t cur) {
+  switch (cur & 3) {
+    case 1: return 0;   // fekvő -> álló
+    case 0: return 3;   // álló -> fekvő 180°
+    case 3: return 2;   // fekvő 180° -> álló 180°
+    default: return 1;  // álló 180° -> fekvő
+  }
 }

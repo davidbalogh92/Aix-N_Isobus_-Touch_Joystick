@@ -8,6 +8,7 @@ struct Settings {
   bool     bgr         = false;  // színsorrend BGR
   uint8_t  brightness  = 192;    // 0..255
   bool     beep        = true;   // hangjelzés gombnyomásra
+  uint8_t  rotation    = 1;      // 0 = álló, 1 = fekvő, 2 = álló 180°, 3 = fekvő 180°
   bool     calValid    = false;  // van-e érintés kalibráció
   uint16_t cal[8]      = {0};    // LovyanGFX kalibrációs adatok
 };
@@ -17,3 +18,4 @@ extern Settings g_set;
 void settingsLoad();
 void settingsSave();
 uint8_t nextLayout(uint8_t cur);   // 3 -> 6 -> 8 -> 3
+uint8_t nextRotation(uint8_t cur); // fekvő -> álló -> fekvő 180° -> álló 180°

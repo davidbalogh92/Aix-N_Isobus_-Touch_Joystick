@@ -8,7 +8,7 @@
 // =============================================================
 
 #define FW_NAME     "AUX-N Touch Joystick"
-#define FW_VERSION  "0.2.0"
+#define FW_VERSION  "0.3.0"
 #define FW_CREDIT   "Készítette: Balogh Dávid & Claude"
 
 #if !defined(BOARD_E32R35T) && !defined(BOARD_E32R28T)
@@ -45,8 +45,6 @@
   #define PIN_CAN_RX     35
   #define PANEL_NATIVE_W 320
   #define PANEL_NATIVE_H 480
-  #define SCREEN_W      480
-  #define SCREEN_H      320
   #define STATUS_H       30
 #else
   #define BOARD_NAME     "E32R28T 2.8\""
@@ -63,8 +61,6 @@
   #define PIN_CAN_RX     35
   #define PANEL_NATIVE_W 240
   #define PANEL_NATIVE_H 320
-  #define SCREEN_W      320
-  #define SCREEN_H      240
   #define STATUS_H       24
 #endif
 

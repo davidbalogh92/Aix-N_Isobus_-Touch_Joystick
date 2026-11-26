@@ -8,6 +8,8 @@
 - [x] 3 / 6 / 8 gombos elrendezés, BOOT-tal váltható
 - [x] Rezisztív érintés szűrés (stabil lenyomás, ugrás = elengedés)
 - [x] Visszajelzés: LED, hang, soros log
+- [x] Tájolás: fekvő / álló / 180° (v0.3.0), álló módban a gombrács is átrendeződik
+- [x] CAN diagnosztika képernyő
 - [x] CAN figyelés (TWAI, 250k, csak hallgat): forgalom, eszközszám, VT jelenlét
 - [ ] Teszt a valós lapon: színek, érintés pontosság, CAN forgalom a Müller terminállal
 
@@ -24,7 +26,6 @@
 - Hozzárendelés-lehallgatás (Auxiliary Assignment Type 2 a busz forgalmából): a kijelző mutatja, melyik bemenetre van funkció kiosztva, és jelzi, ha rejtett (pl. 3 gombos módban a 7-es) bemenetnek van hozzárendelése
 - Keretfelismerés: mágnes a keretben + 2 Hall-szenzor → automatikus 3/6/8 váltás
 - Rezgőmotor (haptikus visszajelzés)
-- Forgatás beállítás (felszerelési iránytól függően)
 
 ## 4. fázis: végleges hardver
 

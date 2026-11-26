@@ -12,6 +12,8 @@ uint8_t layoutCompute(uint8_t layout, int16_t areaX, int16_t areaY, int16_t area
     case 6:
     default: cols = 3; rows = 2; break;
   }
+  // álló (magasabb, mint széles) terület: sorok és oszlopok csere (pl. 8 gomb: 2x4)
+  if (areaH > areaW) { uint8_t t = cols; cols = rows; rows = t; }
   int16_t cw = (areaW - 2 * MARGIN - (cols - 1) * GAP) / cols;
   int16_t ch = (areaH - 2 * MARGIN - (rows - 1) * GAP) / rows;
   uint8_t n = 0;
