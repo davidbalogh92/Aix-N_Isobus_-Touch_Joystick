@@ -8,7 +8,7 @@
 // =============================================================
 
 #define FW_NAME     "AUX-N Touch Joystick"
-#define FW_VERSION  "0.5.0"
+#define FW_VERSION  "0.6.0"
 #define FW_CREDIT   "Készítette: Balogh Dávid & Claude"
 
 #if !defined(BOARD_E32R35T) && !defined(BOARD_E32R28T)
@@ -63,6 +63,12 @@
   #define PANEL_NATIVE_H 320
   #define STATUS_H       24
 #endif
+
+// ---- Fényérzékelő (R21 fotoellenállás) - a pontos láb a betanításkor derül ki ----
+#define PIN_LIGHT_A    34   // a gyártói leírás szerint akku ADC; hasonló lapokon itt az LDR
+#define PIN_LIGHT_B    39   // Expand bemenet
+#define AUTO_BRIGHT_MIN 24  // Auto módban a legkisebb fényerő (ne sötétüljön el)
+#define AUTO_BRIGHT_MAX 255
 
 // ---- Érintés szűrés ----
 #define TOUCH_SAMPLE_MS        10   // mintavétel

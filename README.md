@@ -5,7 +5,7 @@ A kijelző a „gombsor”: 3, 6 vagy 8 gombos elrendezés, fölé cserélhető,
 
 *Készítette: Balogh Dávid & Claude*
 
-## Állapot: 0.5.0
+## Állapot: 0.6.0
 
 - **AUX-N mód** (alap): még nem jelentkezik be a terminálra, és nem küld semmit (hardver ébresztés, 1. fázis).
 - **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. JB3 stílus (sötét gombok, zöld nyilak), 3 színes fül (TRAIL piros / SPRAY sárga / BOOM zöld) + 8 gomb a joystick formájában. Gépprofilok (Vontatott / Vontatott JB3 / Önjáró) és gombszerkesztő: bármelyik gomb elrejthető, a TRAIL B4/B6-on ikon választható. Nyelv: English / Magyar. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
@@ -42,6 +42,7 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 | Gépprofil | Beállítások → Funkciók >> → Gép (Vontatott → Vont. JB3 → Önjáró) |
 | Gombok testreszabása | Beállítások → Funkciók >> → Gombok szerk. (koppintás: Be → másik ikon → Ki) |
 | Nyelv | Beállítások → Nyelv / Language |
+| Auto fényerő | Beállítások → Funkciók >> → Fényérzékelő: R21 letakarva → Sötét, lámpa → Világos (a lábat magától megkeresi). Utána Fény: … → Auto |
 | Tájolás (fekvő / álló / 180°) | Beállítások → Tájolás (utána újrakalibrál). Álló módban: 3 gomb = 1×3, 6 = 2×3, 8 = 2×4 |
 | CAN diagnosztika | Beállítások → Funkciók >> → CAN info |
 | Beállítások | BOOT gomb 2 mp-ig nyomva |

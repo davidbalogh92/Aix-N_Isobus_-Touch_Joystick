@@ -17,6 +17,7 @@ Pin kiosztások forrása: lcdwiki.com (3.5inch / 2.8inch ESP32-32E Display).
 | I2C csatlakozó (1,25 mm 4P) | SCL = IO25, SDA = IO32 |
 | Expand bemenetek (1,25 mm 2P) | IO35, IO39 (csak bemenet) |
 | SD kártya | 5, 18, 19, 23 (nem használjuk) |
+| Fényérzékelő (R21, SMD fotoellenállás) | a gyártói leírásban nem szerepel; valószínűleg IO34 (a leírás szerint akku ADC). A firmware betanításkor méri ki (IO34 / IO39, 11 dB / 0 dB) |
 
 ### CAN modul bekötése (3.5")
 

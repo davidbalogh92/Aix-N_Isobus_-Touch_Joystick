@@ -18,6 +18,10 @@ struct Settings {
   uint8_t  lang        = LANG_EN; // kijelző nyelve (a soros log magyar marad)
   uint8_t  mProfile    = 0;      // Müller gépprofil (PROF_*), 3 = egyéni
   uint8_t  mCfg[24]    = {0};    // Müller gombonkénti állapot (BTN_OFF / BTN_ON / BTN_ALT)
+  bool     autoBright  = false;  // Auto fényerő (fényérzékelő)
+  uint8_t  lightCh     = 0xFF;   // betanított csatorna (0..3), 0xFF = nincs
+  uint16_t lightDark   = 0;      // betanított nyers érték sötétben
+  uint16_t lightBright = 0;      // betanított nyers érték világosban
   uint8_t  rotation    = 1;      // 0 = álló, 1 = fekvő, 2 = álló 180°, 3 = fekvő 180°
   bool     calValid    = false;  // van-e érintés kalibráció
   uint16_t cal[8]      = {0};    // LovyanGFX kalibrációs adatok

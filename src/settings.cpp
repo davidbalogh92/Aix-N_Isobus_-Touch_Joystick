@@ -21,6 +21,11 @@ void settingsLoad() {
   if (g_set.mode > MODE_MULLER) g_set.mode = MODE_AUXN;
   if (g_set.mullerLayer > 2) g_set.mullerLayer = 1;
   g_set.lang        = p.getUChar("lang", LANG_EN) ? LANG_HU : LANG_EN;
+  g_set.autoBright  = p.getBool("abright", false);
+  g_set.lightCh     = p.getUChar("lch", 0xFF);
+  g_set.lightDark   = p.getUShort("ldark", 0);
+  g_set.lightBright = p.getUShort("lbright", 0);
+  if (g_set.lightCh > 3) g_set.lightCh = 0xFF;
   g_set.mProfile    = p.getUChar("mprof", PROF_TOWED_OWN);
   if (p.getBytes("mcfg", g_set.mCfg, sizeof(g_set.mCfg)) != sizeof(g_set.mCfg)) {
     if (g_set.mProfile >= PROF_CUSTOM) g_set.mProfile = PROF_TOWED_OWN;
@@ -52,6 +57,10 @@ void settingsSave() {
   p.putUChar("mode", g_set.mode);
   p.putUChar("mlayer", g_set.mullerLayer);
   p.putUChar("lang", g_set.lang);
+  p.putBool("abright", g_set.autoBright);
+  p.putUChar("lch", g_set.lightCh);
+  p.putUShort("ldark", g_set.lightDark);
+  p.putUShort("lbright", g_set.lightBright);
   p.putUChar("mprof", g_set.mProfile);
   p.putBytes("mcfg", g_set.mCfg, sizeof(g_set.mCfg));
   p.putBool("calok", g_set.calValid);

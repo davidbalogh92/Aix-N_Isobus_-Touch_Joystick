@@ -9,6 +9,7 @@
 #include "muller_out.h"
 #include "muller_funcs.h"
 #include "muller_profile.h"
+#include "light_logic.h"
 
 struct Frame { uint32_t id; uint8_t d[8]; uint8_t len; };
 static std::vector<Frame> tx;
@@ -210,12 +211,43 @@ static void test_profiles() {
   assert(mullerNextVisible(c, 1) == 1 && mullerFirstVisible(c) == 1);
 }
 
+static void test_light() {
+  // IO34 0dB-n van az érzékelő (sötétben magas, világosban alacsony), IO39 zajos, IO34 11dB kis változás
+  uint16_t dark[4]   = {900, 3900, 1200, 4095};
+  uint16_t bright[4] = {850, 1500, 1250, 4095};
+  assert(lightPickChannel(dark, bright) == 1);
+  // telített csatorna kimarad, kis különbség nem érzékelő
+  uint16_t d2[4] = {4095, 4095, 1000, 1000}, b2[4] = {4095, 4095, 1050, 1080};
+  assert(lightPickChannel(d2, b2) == LIGHT_NONE);
+  // fordított irány is működik
+  uint16_t d3[4] = {100, 0, 0, 0}, b3[4] = {2100, 0, 0, 0};
+  assert(lightPickChannel(d3, b3) == 0);
+  // szint: iránytól függetlenül 0 = sötét, 1000 = világos, vágás
+  assert(lightLevel(3900, 3900, 1500) == 0 && lightLevel(1500, 3900, 1500) == 1000);
+  assert(lightLevel(2700, 3900, 1500) == 500);
+  assert(lightLevel(4095, 3900, 1500) == 0 && lightLevel(100, 3900, 1500) == 1000);
+  assert(lightLevel(100, 100, 2100) == 0 && lightLevel(2100, 100, 2100) == 1000);
+  assert(lightLevel(5, 7, 7) == 500);
+  // fényerő
+  assert(lightBrightness(0, 20, 255) == 20 && lightBrightness(1000, 20, 255) == 255);
+  assert(lightBrightness(500, 20, 255) == 138);
+  // simítás: lassan követ, reset azonnal
+  uint32_t st = 0;
+  assert(lightSmooth(st, 100, true) == 100);
+  uint16_t v = 0;
+  for (int i = 0; i < 3; i++) v = lightSmooth(st, 200, false);
+  assert(v > 100 && v < 200);
+  for (int i = 0; i < 80; i++) v = lightSmooth(st, 200, false);
+  assert(v >= 198 && v <= 200);
+}
+
 int main() {
   test_layouts();
   test_touchfilter();
   test_name();
   test_funcs();
   test_profiles();
+  test_light();
   test_sender_basic();
   test_sender_request_and_conflict();
   puts("MINDEN TESZT OK");

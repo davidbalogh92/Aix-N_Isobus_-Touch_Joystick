@@ -21,6 +21,7 @@
 #include "muller_funcs.h"
 #include "muller_profile.h"
 #include "muller_icons.h"
+#include "light_logic.h"
 
 #define RGB565(r, g, b) (uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
 
@@ -102,10 +103,10 @@ static uint32_t s_lastTouchMs = 0;
 // beállítások: 2 oldal, azonosítók
 enum SetId : uint8_t {
   S_CAL, S_ROT, S_BRIGHT, S_BEEP, S_LANG, S_INV, S_BGR, S_PANEL, S_MORE, S_EXIT,
-  S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_BACK,
+  S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_LIGHT, S_BACK,
 };
 static const SetId SET_PAGE0[] = {S_CAL, S_ROT, S_BRIGHT, S_BEEP, S_LANG, S_INV, S_BGR, S_PANEL, S_MORE, S_EXIT};
-static const SetId SET_PAGE1[] = {S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_BACK};
+static const SetId SET_PAGE1[] = {S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_LIGHT, S_BACK};
 static uint8_t s_setPage = 0;
 static KeyRect s_setRects[10];
 static uint8_t s_setCount = 0;
@@ -373,7 +374,12 @@ static void settingLabel(SetId id, char* buf, size_t n) {
   switch (id) {
     case S_CAL:     snprintf(buf, n, "%s", tr("Calibrate", "Kalibrálás")); break;
     case S_ROT:     snprintf(buf, n, "%s", rotationName(g_set.rotation)); break;
-    case S_BRIGHT:  snprintf(buf, n, tr("Brightness %u%%", "Fény: %u%%"), (unsigned)((g_set.brightness * 100 + 127) / 255)); break;
+    case S_BRIGHT:
+      if (g_set.autoBright)
+        snprintf(buf, n, "%s%s", tr("Brightness Auto", "Fény: Auto"), g_set.lightCh == LIGHT_NONE ? " (!)" : "");
+      else
+        snprintf(buf, n, tr("Brightness %u%%", "Fény: %u%%"), (unsigned)((g_set.brightness * 100 + 127) / 255));
+      break;
     case S_BEEP:    snprintf(buf, n, "%s %s", tr("Sound:", "Hang:"), g_set.beep ? tr("On", "Be") : tr("Off", "Ki")); break;
     case S_LANG:    snprintf(buf, n, "%s", tr("Language: English", "Nyelv: Magyar")); break;
     case S_INV:     snprintf(buf, n, "Invert: %s", g_set.invert ? tr("On", "Be") : tr("Off", "Ki")); break;
@@ -390,6 +396,7 @@ static void settingLabel(SetId id, char* buf, size_t n) {
     case S_EDIT:    snprintf(buf, n, "%s", tr("Edit buttons", "Gombok szerk.")); break;
     case S_KEYS:    snprintf(buf, n, tr("AUX-N keys: %u", "AUX-N gomb: %u"), g_set.layout); break;
     case S_CANINFO: snprintf(buf, n, "CAN info"); break;
+    case S_LIGHT:   snprintf(buf, n, "%s", tr("Light sensor", "Fényérzékelő")); break;
     case S_BACK:    snprintf(buf, n, "%s", tr("<< Back", "<< Vissza")); break;
   }
 }
@@ -626,6 +633,155 @@ static void showCanInfo() {
   delay(100);
 }
 
+// =============================================================
+//  Fényérzékelő
+// =============================================================
+static bool     s_lightReset = true;
+static uint32_t s_lightState = 0;
+static uint32_t s_lastLightMs = 0;
+
+// csatorna: 0 = IO34 11dB, 1 = IO34 0dB, 2 = IO39 11dB, 3 = IO39 0dB
+static uint16_t lightRead(uint8_t ch) {
+  uint8_t pin = (ch < 2) ? PIN_LIGHT_A : PIN_LIGHT_B;
+  analogSetPinAttenuation(pin, (ch & 1) ? ADC_0db : ADC_11db);
+  (void)analogRead(pin);                     // első minta eldobva (csillapítás váltás után)
+  uint32_t sum = 0;
+  for (int i = 0; i < 8; i++) sum += analogRead(pin);
+  return (uint16_t)(sum / 8);
+}
+
+static const char* lightChName(uint8_t ch) {
+  static const char* n[4] = {"IO34 11dB", "IO34 0dB", "IO39 11dB", "IO39 0dB"};
+  return ch < 4 ? n[ch] : "-";
+}
+
+// Auto fényerő: 250 ms-onként, simítva
+static void autoBrightLoop(uint32_t now) {
+  if (!g_set.autoBright || g_set.lightCh == LIGHT_NONE) return;
+  if (now - s_lastLightMs < 250) return;
+  s_lastLightMs = now;
+  uint16_t raw = lightRead(g_set.lightCh);
+  uint16_t lvl = lightLevel(raw, g_set.lightDark, g_set.lightBright);
+  uint8_t target = lightBrightness(lvl, AUTO_BRIGHT_MIN, AUTO_BRIGHT_MAX);
+  static uint8_t applied = 0;
+  uint16_t b = lightSmooth(s_lightState, target, s_lightReset);
+  if (s_lightReset || (b > applied ? b - applied : applied - b) >= 3) {
+    applied = (uint8_t)b;
+    lcd.setBrightness(applied);
+  }
+  s_lightReset = false;
+}
+
+// Betanító / mérő képernyő
+static void showLightSensor() {
+  int32_t tx, ty;
+  while (lcd.getTouch(&tx, &ty)) delay(10);
+  lcd.fillScreen(C_BG);
+  drawHeader(tr("Light sensor (R21)", "Fényérzékelő (R21)"), nullptr);
+
+  const int16_t gap = 6, bh = (SH() >= 400) ? 56 : 44;
+  const int16_t bw = (SW() - 4 * gap) / 3, by = SH() - bh - gap;
+  KeyRect btn[3];
+  const char* bl[3] = {tr("Dark", "Sötét"), tr("Bright", "Világos"), tr("Back", "Vissza")};
+  const uint16_t bc[3] = {RGB565(40, 44, 60), RGB565(110, 100, 40), RGB565(40, 90, 60)};
+  for (int i = 0; i < 3; i++) {
+    btn[i] = {(int16_t)(gap + i * (bw + gap)), by, bw, bh};
+    lcd.fillRoundRect(btn[i].x, btn[i].y, bw, bh, 8, bc[i]);
+    drawFit(bl[i], btn[i].x + bw / 2, by + bh / 2, bw - 6, C_WHITE, bc[i]);
+  }
+  const int16_t infoY = by - 52;
+  if (infoY > STATUS_H + 8 + 4 * 30 + 50) {   // kis kijelzőn (2.8" fekvő) nem fér el
+    drawCentered(tr("Cover R21 -> Dark", "R21 letakarva -> Sötét"), SW() / 2, infoY, font_hu13, C_DIM, C_BG);
+    drawCentered(tr("Lamp on R21 -> Bright", "Lámpa az R21-re -> Világos"), SW() / 2, infoY + 18, font_hu13, C_DIM, C_BG);
+  }
+
+  uint16_t dark[4] = {0}, bright[4] = {0};
+  bool haveDark = false, haveBright = false;
+  TouchFilter tf({TOUCH_PRESS_STABLE_MS, TOUCH_RELEASE_MS, TOUCH_STABLE_RADIUS, TOUCH_JUMP_RADIUS});
+  uint32_t lastDraw = 0, lastTouch = 0;
+  char res[64] = "";
+  bool resDirty = true;
+
+  while (true) {
+    uint32_t now = millis();
+    canLoop();
+    fbLoop();
+    s_muller.update(now);
+    if (digitalRead(PIN_BOOT) == LOW) break;
+
+    if (now - lastTouch >= TOUCH_SAMPLE_MS) {
+      lastTouch = now;
+      bool t = lcd.getTouch(&tx, &ty);
+      if (tf.update(t, (int16_t)tx, (int16_t)ty, now) && !tf.pressed() && !tf.blocked()) {
+        int8_t h = layoutHitTest(btn, 3, tf.x(), tf.y(), 2);
+        if (h == 2) break;
+        if (h == 0 || h == 1) {
+          fbBeep(2000, 40);
+          uint16_t* dst = (h == 0) ? dark : bright;
+          for (uint8_t c = 0; c < 4; c++) dst[c] = lightRead(c);
+          if (h == 0) haveDark = true; else haveBright = true;
+          Serial.printf("[FÉNY] %s: %u %u %u %u\n", h == 0 ? "sötét" : "világos", dst[0], dst[1], dst[2], dst[3]);
+          if (haveDark && haveBright) {
+            uint8_t ch = lightPickChannel(dark, bright);
+            if (ch == LIGHT_NONE) {
+              snprintf(res, sizeof(res), "%s", tr("Not found - no change", "Nem található - nincs változás"));
+            } else {
+              g_set.lightCh = ch;
+              g_set.lightDark = dark[ch];
+              g_set.lightBright = bright[ch];
+              settingsSave();
+              s_lightReset = true;
+              snprintf(res, sizeof(res), tr("Found: %s  OK", "Megvan: %s  OK"), lightChName(ch));
+              Serial.printf("[FÉNY] csatorna: %s, sötét=%u világos=%u\n", lightChName(ch), dark[ch], bright[ch]);
+            }
+          } else {
+            snprintf(res, sizeof(res), "%s", h == 0 ? tr("Dark saved, now Bright", "Sötét mentve, most Világos")
+                                                    : tr("Bright saved, now Dark", "Világos mentve, most Sötét"));
+          }
+          resDirty = true;
+        }
+      }
+    }
+
+    if (now - lastDraw >= 300) {
+      lastDraw = now;
+      const int16_t rowH = 30, x0 = 8, barX = SW() / 2, barW = SW() / 2 - 12;
+      for (uint8_t c = 0; c < 4; c++) {
+        uint16_t v = lightRead(c);
+        int16_t y = STATUS_H + 8 + c * rowH;
+        lcd.fillRect(0, y, SW(), rowH - 4, C_BG);
+        char l[40];
+        snprintf(l, sizeof(l), "%s: %4u", lightChName(c), v);
+        useFont(font_hu16);
+        lcd.setTextColor(c == g_set.lightCh ? C_OK : C_TEXT, C_BG);
+        lcd.setTextDatum(lgfx::textdatum::middle_left);
+        lcd.drawString(l, x0, y + (rowH - 4) / 2);
+        lcd.drawRect(barX, y + 4, barW, rowH - 12, C_KEY_EDGE);
+        lcd.fillRect(barX + 1, y + 5, (int32_t)(barW - 2) * v / 4095, rowH - 14, c == g_set.lightCh ? C_OK : C_DIM);
+      }
+      // aktuális szint (ha be van tanítva)
+      int16_t yl = STATUS_H + 8 + 4 * rowH + 6;
+      lcd.fillRect(0, yl - 10, SW(), 20, C_BG);
+      if (g_set.lightCh != LIGHT_NONE) {
+        uint16_t lvl = lightLevel(lightRead(g_set.lightCh), g_set.lightDark, g_set.lightBright);
+        char l[48];
+        snprintf(l, sizeof(l), tr("Level: %u%%  (%s)", "Szint: %u%%  (%s)"), (unsigned)(lvl / 10), lightChName(g_set.lightCh));
+        drawCentered(l, SW() / 2, yl, font_hu16, C_OK, C_BG);
+      } else {
+        drawCentered(tr("Not calibrated", "Nincs betanítva"), SW() / 2, yl, font_hu16, C_WARN, C_BG);
+      }
+      if (resDirty) {
+        resDirty = false;
+        lcd.fillRect(0, yl + 14, SW(), 22, C_BG);
+        if (res[0]) drawFit(res, SW() / 2, yl + 25, SW() - 8, C_WARN, C_BG);
+      }
+    }
+    delay(2);
+  }
+  while (lcd.getTouch(&tx, &ty) || digitalRead(PIN_BOOT) == LOW) delay(10);
+  delay(100);
+}
+
 static void showRestart() {
   settingsSave();
   lcd.fillScreen(C_BG);
@@ -649,11 +805,20 @@ static void settingAction(uint8_t i) {
       drawSettings();
       return;
     case S_BRIGHT: {
+      // 25% -> 50% -> 75% -> 100% -> Auto -> 25%
       static const uint8_t lv[4] = {64, 128, 192, 255};
-      uint8_t idx = 0;
-      for (uint8_t j = 0; j < 4; j++) if (g_set.brightness >= lv[j]) idx = j;
-      g_set.brightness = lv[(idx + 1) % 4];
-      lcd.setBrightness(g_set.brightness);
+      if (g_set.autoBright) {
+        g_set.autoBright = false;
+        g_set.brightness = lv[0];
+      } else if (g_set.brightness >= lv[3]) {
+        g_set.autoBright = true;
+        s_lightReset = true;
+      } else {
+        uint8_t idx = 0;
+        for (uint8_t j = 0; j < 4; j++) if (g_set.brightness >= lv[j]) idx = j;
+        g_set.brightness = lv[idx + 1];
+      }
+      if (!g_set.autoBright || g_set.lightCh == LIGHT_NONE) lcd.setBrightness(g_set.brightness);
       break;
     }
     case S_BEEP:
@@ -716,6 +881,10 @@ static void settingAction(uint8_t i) {
       break;
     case S_CANINFO:
       showCanInfo();
+      drawSettings();
+      return;
+    case S_LIGHT:
+      showLightSensor();
       drawSettings();
       return;
   }
@@ -889,7 +1058,7 @@ void setup() {
   lcd.selectPanel(g_set.panelSt7789, g_set.invert, g_set.bgr);
   lcd.init();
   lcd.setRotation(g_set.rotation);
-  lcd.setBrightness(g_set.brightness);
+  lcd.setBrightness(g_set.brightness);   // Auto módban a loop azonnal felülírja
   if (g_set.calValid) lcd.setTouchCalibrate(g_set.cal);
 
   selfTest();
@@ -921,6 +1090,7 @@ void loop() {
   }
 
   handleBoot(now);
+  autoBrightLoop(now);
 
   if (now - s_lastBarMs >= 300) {
     s_lastBarMs = now;
