@@ -13,7 +13,11 @@
 - [x] CAN figyelés (TWAI, 250k, csak hallgat): forgalom, eszközszám, VT jelenlét
 - [ ] Teszt a valós lapon: színek, érintés pontosság, CAN forgalom a Müller terminállal
 
-## 2. fázis: ISOBUS AUX-N bemeneti eszköz
+## 2. fázis: Müller (ME) mód
+
+Részletek: [TERV_muller_mod.md](TERV_muller_mod.md). Gyorsabb, mint az AUX-N (nincs object pool), és a gyári Jobcomputerrel azonnal tesztelhető.
+
+## 2b. fázis: ISOBUS AUX-N bemeneti eszköz
 
 - AgIsoStack++ (a meglévő AgIsoAuxInputs joystick alapján): address claim, VT kliens, object pool feltöltés
 - Object pool: **mindig 8 db Auxiliary Input Type 2** objektum, állandó ID-kkal. Az elrendezés csak a megjelenítést változtatja, így a terminálon a hozzárendelések megmaradnak.

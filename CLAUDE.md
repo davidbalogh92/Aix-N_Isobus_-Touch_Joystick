@@ -22,6 +22,10 @@
 - `src/settings.*`: NVS (Preferences)
 - `src/fonts_hu.h`: GENERÁLT (`python3 tools/make_vlw.py`), ne szerkeszd kézzel
 
+## Müller mód
+- Terv: docs/TERV_muller_mod.md. Referencia (bemért, mérvadó): docs/muller/ (TERV_muller_auxo.md, MullerJoystickAuxO.h v2).
+- TRAIL B3 (gombszám 2) = vonórúd középre, pillanatnyi (tartani kell). A gyári piktogram ezt nem jelöli.
+
 ## Szabályok
 - Az AUX-N object poolban mindig 8 bemenet legyen, állandó ID-kkal (a hozzárendelések megmaradása miatt).
 - Biztonság: gomb soha ne maradhasson „beragadva”. Érintés-ugrásnál, képernyőváltásnál és hibánál minden gomb elengedett állapotba kerül.
