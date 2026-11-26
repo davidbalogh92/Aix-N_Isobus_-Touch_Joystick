@@ -1,6 +1,6 @@
 #include "settings.h"
 #include <Preferences.h>
-#include "muller_profile.h"
+#include "muller_layout.h"
 
 Settings g_set;
 
@@ -26,13 +26,22 @@ void settingsLoad() {
   g_set.lightDark   = p.getUShort("ldark", 0);
   g_set.lightBright = p.getUShort("lbright", 0);
   if (g_set.lightCh > 3) g_set.lightCh = 0xFF;
-  g_set.mProfile    = p.getUChar("mprof", PROF_TOWED_OWN);
-  if (p.getBytes("mcfg", g_set.mCfg, sizeof(g_set.mCfg)) != sizeof(g_set.mCfg)) {
-    if (g_set.mProfile >= PROF_CUSTOM) g_set.mProfile = PROF_TOWED_OWN;
-    mullerApplyProfile(g_set.mProfile, g_set.mCfg);
+  // Müller kiosztás: új formátum (mslots), vagy átvétel a v0.5-0.6 gombonkénti beállításból (mcfg)
+  if (p.getBytes("mslots", g_set.mSlots, sizeof(g_set.mSlots)) == sizeof(g_set.mSlots) &&
+      p.getBytes("mtabs", g_set.mTabNames, sizeof(g_set.mTabNames)) == sizeof(g_set.mTabNames)) {
+    // megvan
+  } else {
+    uint8_t legacy[24];
+    layoutDefault(g_set.mSlots, g_set.mTabNames);
+    if (p.getBytes("mcfg", legacy, sizeof(legacy)) == sizeof(legacy)) layoutFromLegacy(legacy, g_set.mSlots);
   }
-  for (uint8_t i = 0; i < 24; i++) if (g_set.mCfg[i] > BTN_ALT) g_set.mCfg[i] = BTN_ON;
-  g_set.mProfile = mullerProfileOf(g_set.mCfg);
+  for (uint8_t t = 0; t < 3; t++) {
+    if (g_set.mTabNames[t] >= TAB_NAMES) g_set.mTabNames[t] = t;
+    for (uint8_t b = 0; b < 8; b++) {
+      uint8_t c = g_set.mSlots[t][b];
+      if (c != SLOT_EMPTY && ((c & 0x1F) > 23 || (c & 0x60))) g_set.mSlots[t][b] = SLOT_EMPTY;
+    }
+  }
   g_set.calValid    = p.getBool("calok", false);
   if (g_set.calValid) {
     if (p.getBytes("cal", g_set.cal, sizeof(g_set.cal)) != sizeof(g_set.cal)) {
@@ -61,8 +70,8 @@ void settingsSave() {
   p.putUChar("lch", g_set.lightCh);
   p.putUShort("ldark", g_set.lightDark);
   p.putUShort("lbright", g_set.lightBright);
-  p.putUChar("mprof", g_set.mProfile);
-  p.putBytes("mcfg", g_set.mCfg, sizeof(g_set.mCfg));
+  p.putBytes("mslots", g_set.mSlots, sizeof(g_set.mSlots));
+  p.putBytes("mtabs", g_set.mTabNames, sizeof(g_set.mTabNames));
   p.putBool("calok", g_set.calValid);
   p.putBytes("cal", g_set.cal, sizeof(g_set.cal));
   p.end();

@@ -19,6 +19,10 @@ uint8_t layoutCompute(uint8_t layout, int16_t areaX, int16_t areaY, int16_t area
 // A bal oszlop és a jobb blokk között szélesebb rés van (mint a valódi joystickon).
 void mullerLayout(int16_t areaX, int16_t areaY, int16_t areaW, int16_t areaH, KeyRect out[8]);
 
+// Általános rács (cols x rows), soronként balról jobbra
+void gridLayout(int16_t areaX, int16_t areaY, int16_t areaW, int16_t areaH, uint8_t cols, uint8_t rows,
+                KeyRect* out);
+
 // Melyik gombra esik a pont (a szélein lévő holtsávot levonva). -1 = egyik sem.
 int8_t layoutHitTest(const KeyRect* rects, uint8_t count, int16_t x, int16_t y, int16_t deadzone);
 

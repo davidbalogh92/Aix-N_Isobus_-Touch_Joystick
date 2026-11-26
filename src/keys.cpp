@@ -47,6 +47,20 @@ void mullerLayout(int16_t areaX, int16_t areaY, int16_t areaW, int16_t areaH, Ke
   }
 }
 
+void gridLayout(int16_t areaX, int16_t areaY, int16_t areaW, int16_t areaH, uint8_t cols, uint8_t rows,
+                KeyRect* out) {
+  int16_t cw = (areaW - 2 * MARGIN - (cols - 1) * GAP) / cols;
+  int16_t ch = (areaH - 2 * MARGIN - (rows - 1) * GAP) / rows;
+  for (uint8_t r = 0; r < rows; r++)
+    for (uint8_t c = 0; c < cols; c++) {
+      KeyRect& k = out[r * cols + c];
+      k.x = areaX + MARGIN + c * (cw + GAP);
+      k.y = areaY + MARGIN + r * (ch + GAP);
+      k.w = cw;
+      k.h = ch;
+    }
+}
+
 int8_t layoutHitTest(const KeyRect* rects, uint8_t count, int16_t x, int16_t y, int16_t deadzone) {
   for (uint8_t i = 0; i < count; i++) {
     const KeyRect& k = rects[i];

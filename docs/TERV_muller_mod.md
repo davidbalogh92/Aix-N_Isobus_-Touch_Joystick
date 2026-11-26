@@ -85,7 +85,11 @@ megy az `ss=1`, majd 200 ms-onként az `ss=2`, és elengedésre az `ss=0`. A fun
   gomb azonnal `ss=0`.
 - A rezisztív kijelző egyszerre egy gombot kezel. A Müller kiosztásban nincs kétgombos kombináció, ezért ez itt nem gond.
 
-## Gépprofilok és gombszerkesztő (v0.5.0)
+## Szabad kiosztás (v0.7.0)
+
+3 fül × 8 hely; minden helyre bármelyik Müller funkció (gombszám 0–23) vagy üres. A Jobcomputer csak a gombszámot nézi (az a váltóállást is tartalmazza), ezért a hely mindegy. Alap: gyári Müller kiosztás (TRAIL B3 üres). Fülnevek: TRAIL, SPRAY, BOOM, 1, 2, 3, MAIN, EXTRA; a fül színe a helyéhez kötött (1. piros, 2. sárga, 3. zöld). Kód: `src/muller_layout.h`.
+
+## (Korábbi) Gépprofilok és gombszerkesztő (v0.5.0–0.6.1, a v0.7.0 kiváltotta)
 
 A joystick mindig csak a gombszámot küldi; a profil csak azt dönti el, melyik gomb látszik / nyomható, és milyen ikonnal.
 

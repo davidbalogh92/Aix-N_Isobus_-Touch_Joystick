@@ -16,8 +16,8 @@ struct Settings {
   uint8_t  mode        = 0;      // 0 = AUX-N, 1 = Müller (ME) joystick
   uint8_t  mullerLayer = 1;      // Müller fül: 0 TRAIL, 1 permetezés, 2 keret
   uint8_t  lang        = LANG_EN; // kijelző nyelve (a soros log magyar marad)
-  uint8_t  mProfile    = 0;      // Müller gépprofil (PROF_*), 3 = egyéni
-  uint8_t  mCfg[24]    = {0};    // Müller gombonkénti állapot (BTN_OFF / BTN_ON / BTN_ALT)
+  uint8_t  mSlots[3][8] = {{0}};  // Müller szabad kiosztás: fül x hely -> hely kód (muller_layout.h)
+  uint8_t  mTabNames[3] = {0, 1, 2};  // fülnevek indexe (tabName())
   bool     autoBright  = false;  // Auto fényerő (fényérzékelő)
   uint8_t  lightCh     = 0xFF;   // betanított csatorna (0..3), 0xFF = nincs
   uint16_t lightDark   = 0;      // betanított nyers érték sötétben

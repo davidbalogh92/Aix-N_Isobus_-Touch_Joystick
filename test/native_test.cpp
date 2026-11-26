@@ -8,8 +8,8 @@
 #include "keys.h"
 #include "muller_out.h"
 #include "muller_funcs.h"
-#include "muller_profile.h"
 #include "light_logic.h"
+#include "muller_layout.h"
 
 struct Frame { uint32_t id; uint8_t d[8]; uint8_t len; };
 static std::vector<Frame> tx;
@@ -175,42 +175,6 @@ static void test_sender_request_and_conflict() {
   assert(s.press(20, 770) && tx.back().id == 0x1CE6FF91);
 }
 
-static void test_profiles() {
-  uint8_t c[24];
-  // Vontatott (saját): B3 rejtve, B4/B6 keret ikon, minden más be
-  mullerApplyProfile(PROF_TOWED_OWN, c);
-  assert(!mullerBtnActive(c, 2) && mullerBtnActive(c, 3) && mullerBtnActive(c, 4));
-  assert(mullerIconFor(c, 4) == MIcon::FoldIn && mullerIconFor(c, 5) == MIcon::FoldOut);
-  assert(!mullerBtnActive(c, 17));
-  assert(mullerProfileOf(c) == PROF_TOWED_OWN);
-  assert(mullerLayerVisible(c, 0) && mullerLayerVisible(c, 1) && mullerLayerVisible(c, 2));
-  // JB3 gyári: lakat be, B4/B6 tandem ikon
-  mullerApplyProfile(PROF_TOWED_JB3, c);
-  assert(mullerBtnActive(c, 2) && mullerIconFor(c, 4) == MIcon::AxleIn && mullerIconFor(c, 5) == MIcon::AxleOut);
-  assert(mullerProfileOf(c) == PROF_TOWED_JB3);
-  assert(strcmp(mullerLabelFor(c, 4, true), "Axle \xE2\x86\x92\xE2\x86\x90") == 0);
-  // Önjáró: TRAIL fül eltűnik, BOOT a maradék két fül közt vált
-  mullerApplyProfile(PROF_SELF, c);
-  for (int i = 0; i < 8; i++) assert(!mullerBtnActive(c, i));
-  assert(!mullerLayerVisible(c, 0) && mullerFirstVisible(c) == 1);
-  assert(mullerNextVisible(c, 1) == 2 && mullerNextVisible(c, 2) == 1 && mullerNextVisible(c, 0) == 1);
-  assert(mullerProfileOf(c) == PROF_SELF);
-  // szerkesztés: Be -> Alt -> Ki -> Be (B4), Be -> Ki -> Be (B5), kiosztatlan mindig Ki
-  mullerApplyProfile(PROF_TOWED_OWN, c);
-  assert(mullerNextState(c, 4) == BTN_ALT); c[4] = BTN_ALT;
-  assert(mullerNextState(c, 4) == BTN_OFF); c[4] = BTN_OFF;
-  assert(mullerNextState(c, 4) == BTN_ON);
-  assert(mullerNextState(c, 3) == BTN_OFF);
-  assert(mullerNextState(c, 17) == BTN_OFF);
-  assert(mullerProfileOf(c) == PROF_CUSTOM);   // c[4] = OFF -> egyéni
-  // minden ki: nincs látható fül
-  for (int i = 0; i < 24; i++) c[i] = BTN_OFF;
-  assert(mullerFirstVisible(c) == 0xFF && mullerNextVisible(c, 1) == 0xFF);
-  // csak egy fül: önmagára lép
-  c[9] = BTN_ON;
-  assert(mullerNextVisible(c, 1) == 1 && mullerFirstVisible(c) == 1);
-}
-
 static void test_light() {
   // IO34 0dB-n van az érzékelő (sötétben magas, világosban alacsony), IO39 zajos, IO34 11dB kis változás
   uint16_t dark[4]   = {900, 3900, 1200, 4095};
@@ -241,13 +205,47 @@ static void test_light() {
   assert(v >= 198 && v <= 200);
 }
 
+static void test_layout() {
+  uint8_t sl[3][8], nm[3];
+  layoutDefault(sl, nm);
+  // gyári kiosztás: TRAIL B3 üres, B5 = 3 (középre), keret B2 üres, permetezés B4 = 12
+  assert(sl[0][2] == SLOT_EMPTY && sl[0][4] == 3 && sl[2][1] == SLOT_EMPTY && sl[1][3] == 12);
+  assert(nm[0] == 0 && nm[1] == 1 && nm[2] == 2);
+  assert(strcmp(tabName(1, true), "SPRAY") == 0 && strcmp(tabName(6, false), "FŐ") == 0);
+  // kevert kiosztás: az 1. fülre keret emelés (18) és permetezés adag+ (15)
+  sl[0][0] = 18; sl[0][1] = 15;
+  assert(slotInput(sl[0][0]) == 18 && slotIcon(sl[0][0]) == MIcon::BoomUp);
+  assert(strcmp(slotLabel(sl[0][1], true), "Rate +") == 0);
+  // alternatív ikon
+  uint8_t c = 4 | SLOT_ALT;
+  assert(slotInput(c) == 4 && slotIcon(c) == MIcon::AxleIn && slotAlt(c));
+  assert(slotIcon(5) == MIcon::FoldOut);
+  // üres / kiosztatlan
+  assert(!slotActive(SLOT_EMPTY) && !slotActive(17) && slotIcon(17) == MIcon::None);
+  // fül láthatóság
+  for (int b = 0; b < 8; b++) sl[0][b] = SLOT_EMPTY;
+  assert(!layoutTabVisible(sl, 0) && layoutFirstVisible(sl) == 1);
+  assert(layoutNextVisible(sl, 1) == 2 && layoutNextVisible(sl, 2) == 1);
+  // választó elemek
+  uint8_t it[12];
+  assert(pickerItems(0, it) == 10 && it[8] == (4 | SLOT_ALT) && it[9] == (5 | SLOT_ALT));
+  assert(pickerItems(1, it) == 8 && it[0] == 8 && it[2] == 10 && it[3] == 12);   // B1, B2, B3, B4...
+  assert(pickerItems(2, it) == 7);                                              // keret B2 kiosztatlan
+  // régi beállítás átvétele
+  uint8_t cfg[24];
+  for (int i = 0; i < 24; i++) cfg[i] = 1;
+  cfg[2] = 0; cfg[4] = 2;
+  layoutFromLegacy(cfg, sl);
+  assert(sl[0][2] == SLOT_EMPTY && sl[0][3] == (4 | SLOT_ALT) && sl[0][4] == 3 && sl[2][1] == SLOT_EMPTY);
+}
+
 int main() {
   test_layouts();
   test_touchfilter();
   test_name();
   test_funcs();
-  test_profiles();
   test_light();
+  test_layout();
   test_sender_basic();
   test_sender_request_and_conflict();
   puts("MINDEN TESZT OK");

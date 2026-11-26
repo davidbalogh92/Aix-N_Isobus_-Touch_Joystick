@@ -5,10 +5,10 @@ A kijelző a „gombsor”: 3, 6 vagy 8 gombos elrendezés, fölé cserélhető,
 
 *Készítette: Balogh Dávid & Claude*
 
-## Állapot: 0.6.1
+## Állapot: 0.7.0
 
 - **AUX-N mód** (alap): még nem jelentkezik be a terminálra, és nem küld semmit (hardver ébresztés, 1. fázis).
-- **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. JB3 stílus (sötét gombok, zöld nyilak), 3 színes fül (TRAIL piros / SPRAY sárga / BOOM zöld) + 8 gomb a joystick formájában. Gombszerkesztő: bármelyik gomb elrejthető (pl. önjárón a vonórúd-kormányzás), a TRAIL B4/B6-on ikon választható; ha egy fül minden gombja rejtett, a fül eltűnik. Nyelv: English / Magyar. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
+- **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. JB3 stílus (sötét gombok, zöld nyilak), 3 színes fül (TRAIL piros / SPRAY sárga / BOOM zöld) + 8 gomb a joystick formájában. Szabad kiosztás: 3 fül × 8 hely, bármelyik helyre bármelyik Müller funkció (vagy üres); a fülnevek listából választhatók (TRAIL, SPRAY, BOOM, 1, 2, 3, MAIN, EXTRA). Alap: a gyári Müller kiosztás. Az üres fül eltűnik. Nyelv: English / Magyar. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
 
 ![Müller mód előnézet](docs/muller_elonezet.png)
 
@@ -39,8 +39,8 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 | Elrendezés váltás (3→6→8) | BOOT gomb rövid nyomás (AUX-N módban) |
 | Müller fül váltás (TRAIL → Permetezés → Keret) | fülre érintés, vagy BOOT rövid nyomás (Müller módban) |
 | Mód: AUX-N / Müller | Beállítások → Funkciók >> → Mód |
-| Gombok alaphelyzetbe | Beállítások → Funkciók >> → Gombok alaphelyzet |
-| Gombok testreszabása | Beállítások → Funkciók >> → Gombok szerk. (koppintás: Be → másik ikon → Ki) |
+| Kiosztás alaphelyzetbe | Beállítások → Funkciók >> → Kiosztás alaphelyzet (gyári Müller kiosztás, TRAIL B3 üres) |
+| Kiosztás szerkesztése | Beállítások → Funkciók >> → Kiosztás szerk.: helyre koppintás → funkcióválasztó (3 csoport, Üres, Mégse); a kijelölt fülre újra koppintás → átnevezés |
 | Nyelv | Beállítások → Nyelv / Language |
 | Auto fényerő | Beállítások → Funkciók >> → Fényérzékelő: R21 letakarva → Sötét, lámpa → Világos (a lábat magától megkeresi). Utána Fény: … → Auto |
 | Tájolás (fekvő / álló / 180°) | Beállítások → Tájolás (utána újrakalibrál). Álló módban: 3 gomb = 1×3, 6 = 2×3, 8 = 2×4 |
