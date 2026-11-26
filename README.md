@@ -5,7 +5,7 @@ A kijelző a „gombsor”: 3, 6 vagy 8 gombos elrendezés, fölé cserélhető,
 
 *Készítette: Balogh Dávid & Claude*
 
-## Állapot: 0.1.0, 1. fázis (hardver ébresztés)
+## Állapot: 0.2.0, 1. fázis (hardver ébresztés)
 
 Ez a verzió még **nem ISOBUS eszköz**: nem jelentkezik be a terminálra, és nem küld semmit a buszra. A célja, hogy a hardver biztosan éljen:
 
@@ -18,10 +18,12 @@ Ez a verzió még **nem ISOBUS eszköz**: nem jelentkezik be a terminálra, és 
 
 ## Hardver (1. fázis)
 
-| Rész | Típus |
-|---|---|
-| Kijelző | 2.8" ESP32-32E (E32R28T), 240×320, ILI9341V (az E32R28T-1-en ST7789), XPT2046 rezisztív touch |
-| CAN | SN65HVD230 modul |
+| Lap | Kijelző | .bin |
+|---|---|---|
+| **3.5" ESP32-32E (E32R35T)**, fő cél | 320×480, ST7796U, XPT2046 rezisztív | `AuxN_TouchJoy_E32R35T_...` |
+| 2.8" ESP32-32E (E32R28T) | 240×320, ILI9341V / ST7789, XPT2046 | `AuxN_TouchJoy_E32R28T_...` |
+
+CAN: SN65HVD230 modul. 3.5"-on TX = IO25, RX = IO35; 2.8"-on TX = IO27, RX = IO35.
 
 Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 
@@ -32,7 +34,7 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 | Elrendezés váltás (3→6→8) | BOOT gomb rövid nyomás |
 | Beállítások | BOOT gomb 2 mp-ig nyomva |
 | Kalibrálás | a nyitóképen 1 mp-ig érintsd a kijelzőt, vagy Beállítások → Kalibrálás |
-| Panel típus (ILI9341 ↔ ST7789) | a nyitóképen BOOT 2 mp (vakon is megy, LED: 1 villanás = ILI9341, 2 = ST7789), vagy Beállítások |
+| Panel típus (csak 2.8": ILI9341 ↔ ST7789) | a nyitóképen BOOT 2 mp (vakon is megy, LED: 1 villanás = ILI9341, 2 = ST7789), vagy Beállítások |
 | Rossz színek | Beállítások → Invert / Szín (RGB/BGR); az önteszt sávjai: PIROS, ZÖLD, KÉK, FEHÉR |
 
 ### LED jelzések

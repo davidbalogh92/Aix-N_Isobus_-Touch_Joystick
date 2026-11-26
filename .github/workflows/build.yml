@@ -29,20 +29,23 @@ jobs:
       - name: Install PlatformIO + esptool
         run: pip install platformio "esptool<5"
 
-      - name: Build (E32R28T, 2.8")
-        run: pio run -e e32r28t
+      - name: Build (E32R35T 3.5" + E32R28T 2.8")
+        run: pio run -e e32r35t -e e32r28t
 
       - name: Merged .bin (Espressif web flasher, 0x0 cím)
         run: |
           set -e
-          B=.pio/build/e32r28t
           VER=$(grep -oP 'FW_VERSION\s+"\K[^"]+' src/config.h)
           BOOTAPP=$(find ~/.platformio/packages/framework-arduinoespressif32 -name boot_app0.bin | head -1)
           mkdir -p dist
-          python -m esptool --chip esp32 merge_bin -o dist/AuxN_TouchJoy_E32R28T_v${VER}_FULL_0x0.bin \
-            --flash_mode dio --flash_freq 40m --flash_size 4MB \
-            0x1000 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOTAPP" 0x10000 $B/firmware.bin
-          cp $B/firmware.bin dist/AuxN_TouchJoy_E32R28T_v${VER}_APP_OTA.bin
+          for ENV in e32r35t e32r28t; do
+            B=.pio/build/$ENV
+            NAME=AuxN_TouchJoy_${ENV^^}_v${VER}
+            python -m esptool --chip esp32 merge_bin -o dist/${NAME}_FULL_0x0.bin \
+              --flash_mode dio --flash_freq 40m --flash_size 4MB \
+              0x1000 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOTAPP" 0x10000 $B/firmware.bin
+            cp $B/firmware.bin dist/${NAME}_APP_OTA.bin
+          done
           ls -la dist
 
       # A .bin-ek GitHub Release-be kerülnek (nem számít bele az artifact tárhely-kvótába).

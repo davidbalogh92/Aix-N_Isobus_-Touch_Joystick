@@ -1,15 +1,20 @@
 #pragma once
-// LovyanGFX konfiguráció a 2.8" ESP32-32E laphoz.
-// Két panel-meghajtó van előkészítve (ILI9341 / ST7789), a választás futásidőben,
-// az init() ELŐTT történik a selectPanel()-lel (beállításokból).
+// LovyanGFX konfiguráció az ESP32-32E kijelzős lapokhoz.
+//  - E32R35T (3.5"): ST7796, érintés közös SPI buszon
+//  - E32R28T (2.8"): ILI9341 vagy ST7789 (futásidőben választható), érintés külön buszon
+// A panelválasztás az init() ELŐTT történik a selectPanel()-lel (beállításokból).
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 #include "config.h"
 
 class LGFX : public lgfx::LGFX_Device {
-  lgfx::Panel_ILI9341 _ili;
-  lgfx::Panel_ST7789  _st;
+#if defined(BOARD_E32R35T)
+  lgfx::Panel_ST7796  _p1;
+#else
+  lgfx::Panel_ILI9341 _p1;
+  lgfx::Panel_ST7789  _p2;
+#endif
   lgfx::Bus_SPI       _bus;
   lgfx::Light_PWM     _light;
   lgfx::Touch_XPT2046 _touch;
@@ -21,8 +26,8 @@ class LGFX : public lgfx::LGFX_Device {
     c.pin_cs           = PIN_LCD_CS;
     c.pin_rst          = -1;      // RST az ESP32 EN-re van kötve
     c.pin_busy         = -1;
-    c.panel_width      = 240;
-    c.panel_height     = 320;
+    c.panel_width      = PANEL_NATIVE_W;
+    c.panel_height     = PANEL_NATIVE_H;
     c.offset_x         = 0;
     c.offset_y         = 0;
     c.offset_rotation  = 0;
@@ -32,7 +37,7 @@ class LGFX : public lgfx::LGFX_Device {
     c.invert           = invert;
     c.rgb_order        = bgr;
     c.dlen_16bit       = false;
-    c.bus_shared       = false;
+    c.bus_shared       = TOUCH_SHARED_BUS ? true : false;
     p.config(c);
     p.setLight(&_light);
     p.setTouch(&_touch);
@@ -70,10 +75,16 @@ class LGFX : public lgfx::LGFX_Device {
       c.y_min           = 200;
       c.y_max           = 3800;
       c.pin_int         = PIN_TP_IRQ;
-      c.bus_shared      = false;
       c.offset_rotation = 0;
+#if TOUCH_SHARED_BUS
+      c.bus_shared      = true;
+      c.spi_host        = SPI2_HOST;  // ugyanaz a busz, mint az LCD
+      c.freq            = 2500000;
+#else
+      c.bus_shared      = false;
       c.spi_host        = SPI3_HOST;  // VSPI (SD kártyát nem használunk)
       c.freq            = 1000000;
+#endif
       c.pin_sclk        = PIN_TP_SCLK;
       c.pin_mosi        = PIN_TP_MOSI;
       c.pin_miso        = PIN_TP_MISO;
@@ -82,14 +93,15 @@ class LGFX : public lgfx::LGFX_Device {
     }
   }
 
-  // init() előtt kell hívni!
-  void selectPanel(bool st7789, bool invert, bool bgr) {
-    if (st7789) {
-      cfgPanel(_st, invert, bgr);
-      setPanel(&_st);
-    } else {
-      cfgPanel(_ili, invert, bgr);
-      setPanel(&_ili);
-    }
+  // init() előtt kell hívni! (3.5"-on az alt kapcsoló hatástalan: mindig ST7796)
+  void selectPanel(bool alt, bool invert, bool bgr) {
+#if defined(BOARD_E32R35T)
+    (void)alt;
+    cfgPanel(_p1, invert, bgr);
+    setPanel(&_p1);
+#else
+    if (alt) { cfgPanel(_p2, invert, bgr); setPanel(&_p2); }
+    else     { cfgPanel(_p1, invert, bgr); setPanel(&_p1); }
+#endif
   }
 };

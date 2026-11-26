@@ -1,7 +1,8 @@
 # Fejlesztési terv
 
-## 1. fázis: hardver ébresztés (v0.1.x) ← most
+## 1. fázis: hardver ébresztés (v0.1–0.2) ← most
 
+- [x] 3.5" E32R35T támogatás (fő cél), 2.8" E32R28T másodlagos
 - [x] Kijelző, önteszt, futásidőben választható panel (ILI9341 / ST7789), invert, BGR
 - [x] Érintés kalibrálás NVS-be
 - [x] 3 / 6 / 8 gombos elrendezés, BOOT-tal váltható
@@ -28,5 +29,5 @@
 ## 4. fázis: végleges hardver
 
 - Waveshare ESP32-S3-Touch-LCD-4 (480×480, IPS, kapacitív multitouch, 7–36 V bemenet, TJA1051 CAN, sorkapocs)
-- vagy olcsó változat: 3,5" ESP32-32E (E32R35T), CAN: RX IO35, TX IO25
+- vagy marad a 3,5" ESP32-32E (E32R35T) + SN65HVD230 + 12 V tápegység
 - Keret: ASA vagy PETG, 2–4 mm mély lyukak, árnyékoló perem

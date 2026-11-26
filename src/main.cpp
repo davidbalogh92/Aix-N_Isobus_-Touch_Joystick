@@ -32,6 +32,12 @@ static constexpr uint16_t C_ERR      = RGB565(240, 60, 50);
 
 static LGFX lcd;
 
+#if defined(BOARD_E32R35T)
+static const bool PANEL_SELECTABLE = false;
+#else
+static const bool PANEL_SELECTABLE = true;
+#endif
+
 // ---------------- font kezelés ----------------
 static const uint8_t* s_font = nullptr;
 static void useFont(const uint8_t* f) {
@@ -144,7 +150,11 @@ static void settingLabel(uint8_t i, char* buf, size_t n) {
   switch (i) {
     case 0: snprintf(buf, n, "Kalibrálás"); break;
     case 1: snprintf(buf, n, "Gombok: %u", g_set.layout); break;
+#if defined(BOARD_E32R35T)
+    case 2: snprintf(buf, n, "Panel: ST7796"); break;
+#else
     case 2: snprintf(buf, n, "Panel: %s", g_set.panelSt7789 ? "ST7789" : "ILI9341"); break;
+#endif
     case 3: snprintf(buf, n, "Invert: %s", g_set.invert ? "Be" : "Ki"); break;
     case 4: snprintf(buf, n, "Szín: %s", g_set.bgr ? "BGR" : "RGB"); break;
     case 5: snprintf(buf, n, "Fény: %u%%", (unsigned)((g_set.brightness * 100 + 127) / 255)); break;
@@ -210,9 +220,9 @@ static void selfTest() {
 
 static void doCalibrate() {
   lcd.fillScreen(C_BG);
-  drawCentered("Érintés kalibrálás", SCREEN_W / 2, 90, font_hu22, C_TEXT, C_BG);
-  drawCentered("Érintsd meg sorban", SCREEN_W / 2, 130, font_hu16, C_DIM, C_BG);
-  drawCentered("a sarkokban lévő nyilak hegyét", SCREEN_W / 2, 152, font_hu16, C_DIM, C_BG);
+  drawCentered("Érintés kalibrálás", SCREEN_W / 2, SCREEN_H / 2 - 30, font_hu22, C_TEXT, C_BG);
+  drawCentered("Érintsd meg sorban", SCREEN_W / 2, SCREEN_H / 2 + 10, font_hu16, C_DIM, C_BG);
+  drawCentered("a sarkokban lévő nyilak hegyét", SCREEN_W / 2, SCREEN_H / 2 + 32, font_hu16, C_DIM, C_BG);
   delay(1500);
   forgetFont();
   const uint16_t fg = RGB565(255, 255, 255), bg = C_BG;
@@ -239,12 +249,15 @@ static void blinkPanelCode(bool st7789) {
 
 static void splash() {
   lcd.fillScreen(C_BG);
-  drawCentered("AUX-N", SCREEN_W / 2, 48, font_hu40, C_KEY_ON, C_BG);
-  drawCentered("Touch Joystick", SCREEN_W / 2, 88, font_hu22, C_TEXT, C_BG);
-  drawCentered("v" FW_VERSION, SCREEN_W / 2, 114, font_hu16, C_DIM, C_BG);
-  drawCentered("Érintsd meg 1 mp-ig: kalibrálás", SCREEN_W / 2, 150, font_hu16, C_DIM, C_BG);
-  drawCentered("BOOT 2 mp: panel típus váltás", SCREEN_W / 2, 172, font_hu16, C_DIM, C_BG);
-  drawCentered(FW_CREDIT, SCREEN_W / 2, 216, font_hu16, C_TEXT, C_BG);
+  const int16_t cy = SCREEN_H / 2;
+  drawCentered("AUX-N", SCREEN_W / 2, cy - 72, font_hu40, C_KEY_ON, C_BG);
+  drawCentered("Touch Joystick", SCREEN_W / 2, cy - 32, font_hu22, C_TEXT, C_BG);
+  drawCentered("v" FW_VERSION "  " BOARD_NAME, SCREEN_W / 2, cy - 6, font_hu16, C_DIM, C_BG);
+  drawCentered("Érintsd meg 1 mp-ig: kalibrálás", SCREEN_W / 2, cy + 30, font_hu16, C_DIM, C_BG);
+#if !defined(BOARD_E32R35T)
+  drawCentered("BOOT 2 mp: panel típus váltás", SCREEN_W / 2, cy + 52, font_hu16, C_DIM, C_BG);
+#endif
+  drawCentered(FW_CREDIT, SCREEN_W / 2, SCREEN_H - 24, font_hu16, C_TEXT, C_BG);
 
   uint32_t t0 = millis(), touchT0 = 0, bootT0 = 0;
   bool wantCal = false;
@@ -257,7 +270,9 @@ static void splash() {
     } else {
       touchT0 = 0;
     }
-    if (digitalRead(PIN_BOOT) == LOW) {
+    if (!PANEL_SELECTABLE) {
+      // 3.5"-on nincs panelválasztás
+    } else if (digitalRead(PIN_BOOT) == LOW) {
       if (!bootT0) bootT0 = millis();
       if (millis() - bootT0 >= 2000) {
         g_set.panelSt7789 = !g_set.panelSt7789;
@@ -314,6 +329,9 @@ static void settingAction(uint8_t i) {
       break;
     case 2:
     case 4: {
+#if defined(BOARD_E32R35T)
+      if (i == 2) return;   // 3.5"-on csak ST7796 van
+#endif
       if (i == 2) { g_set.panelSt7789 = !g_set.panelSt7789; g_set.invert = g_set.panelSt7789; }
       else        { g_set.bgr = !g_set.bgr; }
       settingsSave();
@@ -423,6 +441,7 @@ void setup() {
   Serial.println();
   Serial.println("=== " FW_NAME " v" FW_VERSION " ===");
   Serial.println(FW_CREDIT);
+  Serial.println("Lap: " BOARD_NAME);
 
   pinMode(PIN_BOOT, INPUT_PULLUP);
   settingsLoad();

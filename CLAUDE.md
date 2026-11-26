@@ -9,7 +9,8 @@
 - A „Készítette: Balogh Dávid & Claude” felirat maradjon a nyitóképen és a beállítások oldalon.
 
 ## Hardver
-- Most: 2.8" ESP32-32E (E32R28T), lásd docs/HARDVER.md. CAN: SN65HVD230, TX=IO27, RX=IO35.
+- Fő cél: 3.5" ESP32-32E (E32R35T, ST7796, touch közös SPI), CAN: SN65HVD230, TX=IO25, RX=IO35.
+- Másodlagos: 2.8" ESP32-32E (E32R28T), CAN TX=IO27, RX=IO35. Lapválasztás: platformio env (BOARD_E32R35T / BOARD_E32R28T). Részletek: docs/HARDVER.md.
 - Később: Waveshare ESP32-S3-Touch-LCD-4 (lásd docs/TERV.md).
 
 ## Felépítés

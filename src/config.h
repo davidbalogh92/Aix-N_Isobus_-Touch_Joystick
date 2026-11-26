@@ -1,51 +1,72 @@
 #pragma once
 // =============================================================
 //  AUX-N Touch Joystick - hardver konfiguráció
-//  Lap: 2.8" ESP32-32E (E32R28T / E32R28T-1)
-//  Forrás: lcdwiki.com/2.8inch_ESP32-32E_Display pin táblázat
+//  Lapok (platformio.ini env választja):
+//    BOARD_E32R35T : 3.5" ESP32-32E (ST7796U, 320x480)  <- fő cél
+//    BOARD_E32R28T : 2.8" ESP32-32E (ILI9341V / ST7789, 240x320)
+//  Forrás: lcdwiki.com pin táblázatok
 // =============================================================
 
 #define FW_NAME     "AUX-N Touch Joystick"
-#define FW_VERSION  "0.1.0"
+#define FW_VERSION  "0.2.0"
 #define FW_CREDIT   "Készítette: Balogh Dávid & Claude"
 
-// ---- LCD (HSPI) ----
+#if !defined(BOARD_E32R35T) && !defined(BOARD_E32R28T)
+#define BOARD_E32R35T
+#endif
+
+// ---- közös: RGB LED (közös anód: LOW = világít), hang, BOOT ----
+#define PIN_LED_R      22
+#define PIN_LED_G      16
+#define PIN_LED_B      17
+#define PIN_SPK_EN      4   // LOW = erősítő engedélyezve
+#define PIN_SPK        26
+#define PIN_BOOT        0   // LOW = nyomva
+
+// ---- LCD SPI (mindkét lapon) ----
 #define PIN_LCD_SCLK   14
 #define PIN_LCD_MOSI   13
 #define PIN_LCD_MISO   12
 #define PIN_LCD_DC      2
 #define PIN_LCD_CS     15
-#define PIN_LCD_BL     21   // háttérvilágítás, magas = be
 
-// ---- Érintés XPT2046 (külön lábakon, VSPI) ----
-#define PIN_TP_SCLK    25
-#define PIN_TP_MOSI    32
-#define PIN_TP_MISO    39
-#define PIN_TP_CS      33
-#define PIN_TP_IRQ     36
-
-// ---- RGB LED (közös anód: LOW = világít) ----
-#define PIN_LED_R      22
-#define PIN_LED_G      16
-#define PIN_LED_B      17
-
-// ---- Hangszóró ----
-#define PIN_SPK_EN      4   // LOW = erősítő engedélyezve
-#define PIN_SPK        26
-
-// ---- Gomb ----
-#define PIN_BOOT        0   // BOOT gomb (LOW = nyomva)
-
-// ---- CAN (SN65HVD230 modul) ----
-//  TX: SPI periféria csatlakozó "CS" lába (IO27)
-//  RX: Expand csatlakozó IO35 (csak bemenet)
-#define PIN_CAN_TX     27
-#define PIN_CAN_RX     35
-
-// ---- Kijelző geometria (fekvő) ----
-#define SCREEN_W      320
-#define SCREEN_H      240
-#define STATUS_H       24
+#if defined(BOARD_E32R35T)
+  #define BOARD_NAME     "E32R35T 3.5\""
+  #define PIN_LCD_BL     27   // háttérfény, magas = be
+  // Érintés: KÖZÖS SPI busz az LCD-vel
+  #define TOUCH_SHARED_BUS 1
+  #define PIN_TP_SCLK    PIN_LCD_SCLK
+  #define PIN_TP_MOSI    PIN_LCD_MOSI
+  #define PIN_TP_MISO    PIN_LCD_MISO
+  #define PIN_TP_CS      33
+  #define PIN_TP_IRQ     36
+  // CAN: TX = I2C csatlakozó SCL (IO25), RX = Expand IO35
+  #define PIN_CAN_TX     25
+  #define PIN_CAN_RX     35
+  #define PANEL_NATIVE_W 320
+  #define PANEL_NATIVE_H 480
+  #define SCREEN_W      480
+  #define SCREEN_H      320
+  #define STATUS_H       30
+#else
+  #define BOARD_NAME     "E32R28T 2.8\""
+  #define PIN_LCD_BL     21
+  // Érintés: külön lábakon (VSPI)
+  #define TOUCH_SHARED_BUS 0
+  #define PIN_TP_SCLK    25
+  #define PIN_TP_MOSI    32
+  #define PIN_TP_MISO    39
+  #define PIN_TP_CS      33
+  #define PIN_TP_IRQ     36
+  // CAN: TX = SPI periféria csatlakozó CS (IO27), RX = Expand IO35
+  #define PIN_CAN_TX     27
+  #define PIN_CAN_RX     35
+  #define PANEL_NATIVE_W 240
+  #define PANEL_NATIVE_H 320
+  #define SCREEN_W      320
+  #define SCREEN_H      240
+  #define STATUS_H       24
+#endif
 
 // ---- Érintés szűrés ----
 #define TOUCH_SAMPLE_MS        10   // mintavétel
