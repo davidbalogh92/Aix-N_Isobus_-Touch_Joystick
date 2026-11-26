@@ -1,0 +1,48 @@
+name: Firmware build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: PlatformIO cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO + esptool
+        run: pip install platformio "esptool<5"
+
+      - name: Build (E32R28T, 2.8")
+        run: pio run -e e32r28t
+
+      - name: Merged .bin (Espressif web flasher, 0x0 cím)
+        run: |
+          set -e
+          B=.pio/build/e32r28t
+          VER=$(grep -oP 'FW_VERSION\s+"\K[^"]+' src/config.h)
+          BOOTAPP=$(find ~/.platformio/packages/framework-arduinoespressif32 -name boot_app0.bin | head -1)
+          mkdir -p dist
+          python -m esptool --chip esp32 merge_bin -o dist/AuxN_TouchJoy_E32R28T_v${VER}_FULL_0x0.bin \
+            --flash_mode dio --flash_freq 40m --flash_size 4MB \
+            0x1000 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOTAPP" 0x10000 $B/firmware.bin
+          cp $B/firmware.bin dist/AuxN_TouchJoy_E32R28T_v${VER}_APP_OTA.bin
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AuxN_TouchJoy_firmware
+          path: dist/*.bin

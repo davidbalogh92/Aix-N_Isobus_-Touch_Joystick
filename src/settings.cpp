@@ -1,0 +1,46 @@
+#include "settings.h"
+#include <Preferences.h>
+
+Settings g_set;
+
+static const char* NS = "auxjoy";
+
+void settingsLoad() {
+  Preferences p;
+  p.begin(NS, true);
+  g_set.layout      = p.getUChar("layout", 6);
+  g_set.panelSt7789 = p.getBool("st7789", false);
+  g_set.invert      = p.getBool("invert", false);
+  g_set.bgr         = p.getBool("bgr", false);
+  g_set.brightness  = p.getUChar("bright", 192);
+  g_set.beep        = p.getBool("beep", true);
+  g_set.calValid    = p.getBool("calok", false);
+  if (g_set.calValid) {
+    if (p.getBytes("cal", g_set.cal, sizeof(g_set.cal)) != sizeof(g_set.cal)) {
+      g_set.calValid = false;
+    }
+  }
+  p.end();
+  if (g_set.layout != 3 && g_set.layout != 6 && g_set.layout != 8) g_set.layout = 6;
+  if (g_set.brightness < 32) g_set.brightness = 32;
+}
+
+void settingsSave() {
+  Preferences p;
+  p.begin(NS, false);
+  p.putUChar("layout", g_set.layout);
+  p.putBool("st7789", g_set.panelSt7789);
+  p.putBool("invert", g_set.invert);
+  p.putBool("bgr", g_set.bgr);
+  p.putUChar("bright", g_set.brightness);
+  p.putBool("beep", g_set.beep);
+  p.putBool("calok", g_set.calValid);
+  p.putBytes("cal", g_set.cal, sizeof(g_set.cal));
+  p.end();
+}
+
+uint8_t nextLayout(uint8_t cur) {
+  if (cur == 3) return 6;
+  if (cur == 6) return 8;
+  return 3;
+}
