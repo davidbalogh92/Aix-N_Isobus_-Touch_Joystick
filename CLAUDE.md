@@ -29,7 +29,7 @@
 ## Müller mód
 - Terv: docs/TERV_muller_mod.md. Referencia (bemért, mérvadó): docs/muller/ (TERV_muller_auxo.md, MullerJoystickAuxO.h v2).
 - A felhasználó gépe: TRAIL B5 (gombszám 3) = vonórúd középre (tartásos); TRAIL B4 (4) = keret összecsukás, B6 (5) = keret kinyitás (tartásos; hivatalosan tandem-híd funkció); TRAIL B3 (2) = gyári lakat, nála nincs.
-- Gépprofilok + gombszerkesztő: `src/muller_profile.h` (natívan tesztelt). Téma: JB3 (sötét gombok, zöld nyilak, kék szórófej), fülek: TRAIL piros, SPRAY sárga, BOOM zöld.
+- Gombszerkesztő (a felhasználó kérésére NINCS profilválasztó a menüben, csak „Gombok alaphelyzet” = a saját vontatott alapállapot): `src/muller_profile.h` (natívan tesztelt). Téma: JB3 (sötét gombok, zöld nyilak, kék szórófej), fülek: TRAIL piros, SPRAY sárga, BOOM zöld.
 - Nyelv: a kijelző EN/HU (`tr(en, hu)` a main.cpp-ben), alapból angol; a soros log magyar. A kredit felirat mindig magyar.
 
 ## Szabályok

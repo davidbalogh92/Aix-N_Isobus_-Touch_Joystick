@@ -5,10 +5,10 @@ A kijelző a „gombsor”: 3, 6 vagy 8 gombos elrendezés, fölé cserélhető,
 
 *Készítette: Balogh Dávid & Claude*
 
-## Állapot: 0.6.0
+## Állapot: 0.6.1
 
 - **AUX-N mód** (alap): még nem jelentkezik be a terminálra, és nem küld semmit (hardver ébresztés, 1. fázis).
-- **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. JB3 stílus (sötét gombok, zöld nyilak), 3 színes fül (TRAIL piros / SPRAY sárga / BOOM zöld) + 8 gomb a joystick formájában. Gépprofilok (Vontatott / Vontatott JB3 / Önjáró) és gombszerkesztő: bármelyik gomb elrejthető, a TRAIL B4/B6-on ikon választható. Nyelv: English / Magyar. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
+- **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. JB3 stílus (sötét gombok, zöld nyilak), 3 színes fül (TRAIL piros / SPRAY sárga / BOOM zöld) + 8 gomb a joystick formájában. Gombszerkesztő: bármelyik gomb elrejthető (pl. önjárón a vonórúd-kormányzás), a TRAIL B4/B6-on ikon választható; ha egy fül minden gombja rejtett, a fül eltűnik. Nyelv: English / Magyar. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
 
 ![Müller mód előnézet](docs/muller_elonezet.png)
 
@@ -39,7 +39,7 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 | Elrendezés váltás (3→6→8) | BOOT gomb rövid nyomás (AUX-N módban) |
 | Müller fül váltás (TRAIL → Permetezés → Keret) | fülre érintés, vagy BOOT rövid nyomás (Müller módban) |
 | Mód: AUX-N / Müller | Beállítások → Funkciók >> → Mód |
-| Gépprofil | Beállítások → Funkciók >> → Gép (Vontatott → Vont. JB3 → Önjáró) |
+| Gombok alaphelyzetbe | Beállítások → Funkciók >> → Gombok alaphelyzet |
 | Gombok testreszabása | Beállítások → Funkciók >> → Gombok szerk. (koppintás: Be → másik ikon → Ki) |
 | Nyelv | Beállítások → Nyelv / Language |
 | Auto fényerő | Beállítások → Funkciók >> → Fényérzékelő: R21 letakarva → Sötét, lámpa → Világos (a lábat magától megkeresi). Utána Fény: … → Auto |

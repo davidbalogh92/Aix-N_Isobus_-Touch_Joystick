@@ -106,7 +106,7 @@ enum SetId : uint8_t {
   S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_LIGHT, S_BACK,
 };
 static const SetId SET_PAGE0[] = {S_CAL, S_ROT, S_BRIGHT, S_BEEP, S_LANG, S_INV, S_BGR, S_PANEL, S_MORE, S_EXIT};
-static const SetId SET_PAGE1[] = {S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_LIGHT, S_BACK};
+static const SetId SET_PAGE1[] = {S_MODE, S_EDIT, S_PROFILE, S_KEYS, S_CANINFO, S_LIGHT, S_BACK};
 static uint8_t s_setPage = 0;
 static KeyRect s_setRects[10];
 static uint8_t s_setCount = 0;
@@ -343,8 +343,6 @@ static void drawMain() {
 // ---- gombszerkesztő ----
 static void drawEditor() {
   lcd.fillScreen(C_BG);
-  char right[24];
-  snprintf(right, sizeof(right), "%s", mullerProfileName(g_set.mProfile, isEn()));
   drawHeader(tr("Edit buttons", "Gombok szerk."), nullptr);
   // "Kész" gomb a fejléc jobb oldalán
   int16_t dw = 84;
@@ -352,11 +350,6 @@ static void drawEditor() {
   lcd.fillRoundRect(s_editDone.x, s_editDone.y, s_editDone.w, s_editDone.h, 6, RGB565(40, 110, 60));
   drawCentered(tr("Done", "Kész"), s_editDone.x + dw / 2, s_editDone.y + s_editDone.h / 2, font_hu16, C_WHITE,
                RGB565(40, 110, 60));
-  // profil név középen
-  useFont(font_hu13);
-  lcd.setTextColor(C_DIM, C_BAR);
-  lcd.setTextDatum(lgfx::textdatum::middle_right);
-  lcd.drawString(right, s_editDone.x - 8, STATUS_H / 2);
 
   drawTabs(true, s_editLayer);
   mullerLayout(0, STATUS_H + tabH(), SW(), SH() - STATUS_H - tabH(), s_keys);
@@ -392,7 +385,7 @@ static void settingLabel(SetId id, char* buf, size_t n) {
     case S_MORE:    snprintf(buf, n, "%s", tr("Functions >>", "Funkciók >>")); break;
     case S_EXIT:    snprintf(buf, n, "%s", tr("Exit", "Kilépés")); break;
     case S_MODE:    snprintf(buf, n, "%s %s", tr("Mode:", "Mód:"), isMuller() ? "Müller" : "AUX-N"); break;
-    case S_PROFILE: snprintf(buf, n, "%s %s", tr("Machine:", "Gép:"), mullerProfileName(g_set.mProfile, isEn())); break;
+    case S_PROFILE: snprintf(buf, n, "%s", tr("Reset buttons", "Gombok alaphelyzet")); break;
     case S_EDIT:    snprintf(buf, n, "%s", tr("Edit buttons", "Gombok szerk.")); break;
     case S_KEYS:    snprintf(buf, n, tr("AUX-N keys: %u", "AUX-N gomb: %u"), g_set.layout); break;
     case S_CANINFO: snprintf(buf, n, "CAN info"); break;
@@ -646,8 +639,8 @@ static uint16_t lightRead(uint8_t ch) {
   analogSetPinAttenuation(pin, (ch & 1) ? ADC_0db : ADC_11db);
   (void)analogRead(pin);                     // első minta eldobva (csillapítás váltás után)
   uint32_t sum = 0;
-  for (int i = 0; i < 8; i++) sum += analogRead(pin);
-  return (uint16_t)(sum / 8);
+  for (int i = 0; i < 32; i++) sum += analogRead(pin);
+  return (uint16_t)(sum / 32);
 }
 
 static const char* lightChName(uint8_t ch) {
@@ -862,15 +855,14 @@ static void settingAction(uint8_t i) {
       g_set.mode = isMuller() ? MODE_AUXN : MODE_MULLER;
       applyMode();
       break;
-    case S_PROFILE: {
-      // Vontatott -> Vont. JB3 -> Önjáró -> Vontatott (egyéniről a Vontatottra)
-      uint8_t p = (g_set.mProfile >= PROF_CUSTOM) ? PROF_TOWED_OWN : (uint8_t)((g_set.mProfile + 1) % PROF_COUNT_PRESET);
-      mullerApplyProfile(p, g_set.mCfg);
-      g_set.mProfile = p;
+    case S_PROFILE:
+      // Gombok alaphelyzetbe (a felhasználó gépe: TRAIL B3 rejtve, minden más be, alap ikonok)
+      mullerApplyProfile(PROF_TOWED_OWN, g_set.mCfg);
+      g_set.mProfile = PROF_TOWED_OWN;
       fixMullerLayer();
-      Serial.printf("[ME] gépprofil: %s\n", mullerProfileName(p, false));
+      Serial.println("[ME] gombok alaphelyzetbe");
+      fbBeep(1500, 120);
       break;
-    }
     case S_EDIT:
       s_editLayer = g_set.mullerLayer;
       settingsSave();
@@ -926,12 +918,6 @@ static void editorAction(int8_t hit) {
     Serial.printf("[ME] szerk.: %s B%d -> %s\n", mullerLayerName(s_editLayer, false), hit + 1,
                   g_set.mCfg[in] == BTN_OFF ? "KI" : (g_set.mCfg[in] == BTN_ALT ? "ALT ikon" : "BE"));
     drawMullerKeyEx(hit, s_editLayer, false, true);
-    // fejléc profilnév frissítése
-    useFont(font_hu13);
-    lcd.fillRect(SW() / 2, 0, s_editDone.x - SW() / 2 - 2, STATUS_H, C_BAR);
-    lcd.setTextColor(C_DIM, C_BAR);
-    lcd.setTextDatum(lgfx::textdatum::middle_right);
-    lcd.drawString(mullerProfileName(g_set.mProfile, isEn()), s_editDone.x - 8, STATUS_H / 2);
   }
 }
 
