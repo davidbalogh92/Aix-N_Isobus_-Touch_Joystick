@@ -5,10 +5,10 @@ A kijelző a „gombsor”: 3, 6 vagy 8 gombos elrendezés, fölé cserélhető,
 
 *Készítette: Balogh Dávid & Claude*
 
-## Állapot: 0.4.0
+## Állapot: 0.5.0
 
 - **AUX-N mód** (alap): még nem jelentkezik be a terminálra, és nem küld semmit (hardver ébresztés, 1. fázis).
-- **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. 3 fül (TRAIL / Permetezés / Keret) + 8 gomb a joystick formájában, ikonokkal. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
+- **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. JB3 stílus (sötét gombok, zöld nyilak), 3 színes fül (TRAIL piros / SPRAY sárga / BOOM zöld) + 8 gomb a joystick formájában. Gépprofilok (Vontatott / Vontatott JB3 / Önjáró) és gombszerkesztő: bármelyik gomb elrejthető, a TRAIL B4/B6-on ikon választható. Nyelv: English / Magyar. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
 
 ![Müller mód előnézet](docs/muller_elonezet.png)
 
@@ -38,9 +38,12 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 |---|---|
 | Elrendezés váltás (3→6→8) | BOOT gomb rövid nyomás (AUX-N módban) |
 | Müller fül váltás (TRAIL → Permetezés → Keret) | fülre érintés, vagy BOOT rövid nyomás (Müller módban) |
-| Mód: AUX-N / Müller | Beállítások → Mód |
+| Mód: AUX-N / Müller | Beállítások → Funkciók >> → Mód |
+| Gépprofil | Beállítások → Funkciók >> → Gép (Vontatott → Vont. JB3 → Önjáró) |
+| Gombok testreszabása | Beállítások → Funkciók >> → Gombok szerk. (koppintás: Be → másik ikon → Ki) |
+| Nyelv | Beállítások → Nyelv / Language |
 | Tájolás (fekvő / álló / 180°) | Beállítások → Tájolás (utána újrakalibrál). Álló módban: 3 gomb = 1×3, 6 = 2×3, 8 = 2×4 |
-| CAN diagnosztika | Beállítások → Info: CAN |
+| CAN diagnosztika | Beállítások → Funkciók >> → CAN info |
 | Beállítások | BOOT gomb 2 mp-ig nyomva |
 | Kalibrálás | a nyitóképen 1 mp-ig érintsd a kijelzőt, vagy Beállítások → Kalibrálás |
 | Panel típus (csak 2.8": ILI9341 ↔ ST7789) | a nyitóképen BOOT 2 mp (vakon is megy, LED: 1 villanás = ILI9341, 2 = ST7789), vagy Beállítások |

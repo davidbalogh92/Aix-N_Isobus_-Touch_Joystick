@@ -1,7 +1,7 @@
 # Terv: Müller (ME) mód a Touch Joystickon
 
 Készítette: Balogh Dávid & Claude, 2026-11-26
-Állapot: **v0.4.0-ban megépítve**, a buszon még nincs kipróbálva (a CAN modul csatlakozójára várunk).
+Állapot: **v0.5.0** (JB3 stílus, gépprofilok, gombszerkesztő, EN/HU), a buszon még nincs kipróbálva (a CAN modul csatlakozójára várunk).
 
 ![Előnézet](muller_elonezet.png)
 
@@ -38,10 +38,10 @@ Gombszám = váltóállás × 8 + belső index (B1=0 B2=1 B3=2 B5=3 B4=4 B6=5 B7
 |---|---|---|---|---|
 | TRAIL | B1 | 0 | TRAIL kézi/auto | egyszeri nyomás |
 | TRAIL | B2 | 1 | TRAIL be/ki | egyszeri nyomás |
-| TRAIL | **B3** | **2** | **Vonórúd középre** (a gyári piktogram nem jelöli, a felhasználó gépén ez a funkciója) | **pillanatnyi (tartani kell)** |
-| TRAIL | B4 | 4 | szabad | – |
-| TRAIL | B5 | 3 | szabad | – |
-| TRAIL | B6 | 5 | szabad | – |
+| TRAIL | B3 | 2 | Tengely reteszelés (gyári JB3, lakat). A felhasználó gépén nincs → „Vontatott” profilban rejtve | egyszeri nyomás |
+| TRAIL | **B4** | **4** | **Keret összecsukás** (a felhasználó gépén; hivatalosan tandem, kormányzott hátsó hidas gépen a híd funkciója → alternatív ikon) | pillanatnyi |
+| TRAIL | **B5** | **3** | **Vonórúd középre** | **pillanatnyi (tartani kell)** |
+| TRAIL | **B6** | **5** | **Keret kinyitás** (alternatív ikon: gyári tandem-híd) | pillanatnyi |
 | TRAIL | B7 | 6 | Kormányzás balra | pillanatnyi |
 | TRAIL | B8 | 7 | Kormányzás jobbra | pillanatnyi |
 | Permetezés | B1 | 8 | Célérték 100% | egyszeri nyomás |
@@ -84,6 +84,18 @@ megy az `ss=1`, majd 200 ms-onként az `ss=2`, és elengedésre az `ss=0`. A fun
 - Érintés-ugrás (két ujj a rezisztív kijelzőn), fülváltás, képernyőváltás, beállítások megnyitása, CAN bus-off → minden
   gomb azonnal `ss=0`.
 - A rezisztív kijelző egyszerre egy gombot kezel. A Müller kiosztásban nincs kétgombos kombináció, ezért ez itt nem gond.
+
+## Gépprofilok és gombszerkesztő (v0.5.0)
+
+A joystick mindig csak a gombszámot küldi; a profil csak azt dönti el, melyik gomb látszik / nyomható, és milyen ikonnal.
+
+| Profil | TRAIL fül |
+|---|---|
+| Vontatott (saját, alap) | B3 rejtve, B4/B6 keret össze/kinyitás, B5 középre, B7/B8 kormányzás |
+| Vontatott JB3 (gyári) | B3 lakat, B4/B6 gyári tandem-híd ikon |
+| Önjáró | a TRAIL fül teljesen rejtve |
+
+Gombszerkesztő: koppintás = Be → másik ikon (ha van) → Ki. Ha egy fül minden gombja ki van kapcsolva, a fül eltűnik, és a BOOT csak a látható fülek között vált. Szerkesztés után a profil „Egyéni”.
 
 ## Beállítások
 

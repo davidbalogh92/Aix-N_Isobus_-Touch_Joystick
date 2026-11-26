@@ -1,12 +1,12 @@
 // =============================================================
 //  AUX-N Touch Joystick
-//  - kijelző + önteszt (színsávok, LED, hang)
-//  - érintés kalibrálás (NVS-ben tárolva)
-//  - 3 / 6 / 8 gombos elrendezés (BOOT rövid nyomás váltja)
-//  - gombnyomás visszajelzés: kijelző + kék LED + hang + soros log
-//  - CAN figyelés (250k): forgalom, eszközszám, VT jelenlét
-//  - Müller (ME) mód: 3 fül + 8 gomb a joystick formájában, AUX-O küldés (docs/TERV_muller_mod.md)
-//  - beállítások menü (BOOT 2 mp)
+//  - kijelző + önteszt (színsávok, LED, hang), érintés kalibrálás (NVS)
+//  - AUX-N mód: 3 / 6 / 8 gombos elrendezés (BOOT rövid nyomás váltja) - ISOBUS réteg később
+//  - Müller (ME) mód: JB3 stílusú képernyő, 3 színes fül (TRAIL / SPRAY / BOOM) + 8 gomb a joystick
+//    formájában, AUX-O küldés (docs/TERV_muller_mod.md), gépprofilok + gombszerkesztő
+//  - nyelv: English / Magyar (kijelző); a soros log magyar
+//  - CAN figyelés (250k), CAN diagnosztika
+//  - beállítások (BOOT 2 mp), 2 oldal
 //  Készítette: Balogh Dávid & Claude
 // =============================================================
 #include <Arduino.h>
@@ -19,6 +19,7 @@
 #include "keys.h"
 #include "muller_out.h"
 #include "muller_funcs.h"
+#include "muller_profile.h"
 #include "muller_icons.h"
 
 #define RGB565(r, g, b) (uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
@@ -33,13 +34,17 @@ static constexpr uint16_t C_DIM      = RGB565(150, 155, 165);
 static constexpr uint16_t C_OK       = RGB565(60, 200, 90);
 static constexpr uint16_t C_WARN     = RGB565(240, 200, 40);
 static constexpr uint16_t C_ERR      = RGB565(240, 60, 50);
-// Müller mód
-static constexpr uint16_t C_MKEY     = RGB565(228, 230, 234);   // világos gomb (napfényben jól látszik)
-static constexpr uint16_t C_MFREE    = RGB565(58, 62, 72);      // kiosztatlan gomb
-static constexpr uint16_t C_ICON     = RGB565(20, 20, 24);
-static constexpr uint16_t C_IBLUE    = RGB565(0, 110, 230);
-static constexpr uint16_t C_IRED     = RGB565(225, 30, 30);
-static constexpr uint16_t C_TAB      = RGB565(52, 58, 70);
+static constexpr uint16_t C_BLACK    = RGB565(0, 0, 0);
+static constexpr uint16_t C_WHITE    = RGB565(245, 245, 245);
+// Müller mód - JB3 stílus
+static constexpr uint16_t C_MKEY      = RGB565(74, 76, 80);
+static constexpr uint16_t C_MKEY_EDGE = RGB565(120, 124, 130);
+static constexpr uint16_t C_MFREE     = RGB565(44, 46, 50);
+static constexpr uint16_t C_IBLUE     = RGB565(30, 140, 235);
+static constexpr uint16_t C_IGREEN    = RGB565(80, 210, 70);
+static constexpr uint16_t C_IAUTO     = RGB565(60, 170, 60);
+static constexpr uint16_t C_LAYER_ON[3]  = {RGB565(230, 40, 40), RGB565(245, 200, 30), RGB565(70, 190, 70)};
+static constexpr uint16_t C_LAYER_DIM[3] = {RGB565(90, 30, 30), RGB565(95, 80, 20), RGB565(30, 80, 35)};
 
 static LGFX lcd;
 static inline int16_t SW() { return (int16_t)lcd.width(); }
@@ -50,6 +55,11 @@ static const bool PANEL_SELECTABLE = false;
 #else
 static const bool PANEL_SELECTABLE = true;
 #endif
+
+// ---------------- nyelv ----------------
+static inline bool isHu() { return g_set.lang == LANG_HU; }
+static inline bool isEn() { return g_set.lang != LANG_HU; }
+static inline const char* tr(const char* en, const char* hu) { return isHu() ? hu : en; }
 
 // ---------------- font kezelés ----------------
 static const uint8_t* s_font = nullptr;
@@ -65,16 +75,22 @@ static void forgetFont() {   // pl. calibrateTouch után
 }
 
 // ---------------- állapot ----------------
-enum class Screen : uint8_t { Main, Settings };
+enum class Screen : uint8_t { Main, Settings, Editor };
 static Screen s_screen = Screen::Main;
 
 static KeyRect s_keys[MAX_KEYS];
-static KeyRect s_tabs[3];
-static MullerAuxOSender s_muller;
-static inline bool isMuller() { return g_set.mode == MODE_MULLER; }
 static uint8_t s_keyCount = 0;
 static int8_t  s_activeKey = -1;
 bool g_keyDown[MAX_KEYS] = {false};   // később ezt olvassa az AUX-N réteg
+
+// Müller
+static MullerAuxOSender s_muller;
+static KeyRect s_tabs[3];
+static uint8_t s_tabLayer[3];          // látható fül index -> réteg
+static uint8_t s_tabCount = 0;
+static uint8_t s_editLayer = 0;        // szerkesztőben kijelölt fül
+static KeyRect s_editDone;             // szerkesztő "Kész" gomb
+static inline bool isMuller() { return g_set.mode == MODE_MULLER; }
 
 static TouchFilter s_touch({TOUCH_PRESS_STABLE_MS, TOUCH_RELEASE_MS,
                             TOUCH_STABLE_RADIUS, TOUCH_JUMP_RADIUS});
@@ -83,11 +99,17 @@ static char     s_barCache[96] = "";
 static uint32_t s_lastBarMs = 0;
 static uint32_t s_lastTouchMs = 0;
 
-// beállítások menü
-static const uint8_t SET_ITEMS = 11;
-static const uint8_t SET_BACK = 10;
-static KeyRect s_setRects[SET_ITEMS];
-static int8_t  s_setPressed = -1;
+// beállítások: 2 oldal, azonosítók
+enum SetId : uint8_t {
+  S_CAL, S_ROT, S_BRIGHT, S_BEEP, S_LANG, S_INV, S_BGR, S_PANEL, S_MORE, S_EXIT,
+  S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_BACK,
+};
+static const SetId SET_PAGE0[] = {S_CAL, S_ROT, S_BRIGHT, S_BEEP, S_LANG, S_INV, S_BGR, S_PANEL, S_MORE, S_EXIT};
+static const SetId SET_PAGE1[] = {S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_BACK};
+static uint8_t s_setPage = 0;
+static KeyRect s_setRects[10];
+static uint8_t s_setCount = 0;
+static int8_t  s_setPressed = -1;     // beállítások / szerkesztő: lenyomott elem
 
 // BOOT gomb
 static bool     s_bootDown = false;
@@ -95,7 +117,7 @@ static uint32_t s_bootT0 = 0;
 static bool     s_bootLongFired = false;
 
 // =============================================================
-//  Rajzolás
+//  Rajzolás - segédek
 // =============================================================
 static void drawCentered(const char* txt, int16_t x, int16_t y, const uint8_t* font,
                          uint16_t fg, uint16_t bg) {
@@ -103,6 +125,13 @@ static void drawCentered(const char* txt, int16_t x, int16_t y, const uint8_t* f
   lcd.setTextColor(fg, bg);
   lcd.setTextDatum(lgfx::textdatum::middle_center);
   lcd.drawString(txt, x, y);
+}
+
+// Középre írás: ha a 16 px-es nem fér el maxW-ben, 13 px-es fonttal
+static void drawFit(const char* txt, int16_t x, int16_t y, int16_t maxW, uint16_t fg, uint16_t bg) {
+  useFont(font_hu16);
+  const uint8_t* f = (lcd.textWidth(txt) <= maxW) ? font_hu16 : font_hu13;
+  drawCentered(txt, x, y, f, fg, bg);
 }
 
 // Kredit: ha keskeny a kijelző (álló), két sorban
@@ -117,48 +146,53 @@ static void drawCredit(int16_t yCenter, uint16_t fg) {
 
 static const char* rotationName(uint8_t r) {
   switch (r & 3) {
-    case 0: return "Álló";
-    case 1: return "Fekvő";
-    case 2: return "Álló 180°";
-    default: return "Fekvő 180°";
+    case 0:  return tr("Portrait", "Álló");
+    case 1:  return tr("Landscape", "Fekvő");
+    case 2:  return tr("Portrait 180°", "Álló 180°");
+    default: return tr("Landsc. 180°", "Fekvő 180°");
+  }
+}
+
+static void drawHeader(const char* title, const char* right) {
+  lcd.fillRect(0, 0, SW(), STATUS_H, C_BAR);
+  useFont(font_hu16);
+  lcd.setTextColor(C_TEXT, C_BAR);
+  lcd.setTextDatum(lgfx::textdatum::middle_left);
+  lcd.drawString(title, 6, STATUS_H / 2);
+  if (right) {
+    lcd.setTextColor(C_DIM, C_BAR);
+    lcd.setTextDatum(lgfx::textdatum::middle_right);
+    lcd.drawString(right, SW() - 6, STATUS_H / 2);
   }
 }
 
 static void drawStatusBar(bool force) {
   const CanStats& cs = canStats();
-  char left[16], mid[48], right[24];
+  char left[24], mid[48], right[32];
   if (isMuller()) snprintf(left, sizeof(left), "Müller");
-  else            snprintf(left, sizeof(left), "%u gomb", g_set.layout);
-  if (cs.state == CanState::Ok && cs.vtSeen) {
-    snprintf(mid, sizeof(mid), "CAN: OK, VT:%u", cs.vtAddr);
-  } else {
-    snprintf(mid, sizeof(mid), "%s", canStateText(cs.state));
-  }
+  else            snprintf(left, sizeof(left), tr("%u keys", "%u gomb"), g_set.layout);
+  if (cs.state == CanState::Ok && cs.vtSeen) snprintf(mid, sizeof(mid), "CAN: OK, VT:%u", cs.vtAddr);
+  else                                         snprintf(mid, sizeof(mid), "%s", canStateText(cs.state, isHu()));
   if (isMuller()) {
     switch (s_muller.state()) {
-      case MullerAuxOSender::State::Claimed:     snprintf(right, sizeof(right), "cím 0x%02X", s_muller.address()); break;
-      case MullerAuxOSender::State::Claiming:    snprintf(right, sizeof(right), "címfoglalás"); break;
-      case MullerAuxOSender::State::CannotClaim: snprintf(right, sizeof(right), "nincs cím"); break;
-      default:                                   snprintf(right, sizeof(right), "ki"); break;
+      case MullerAuxOSender::State::Claimed:
+        snprintf(right, sizeof(right), tr("addr 0x%02X", "cím 0x%02X"), s_muller.address()); break;
+      case MullerAuxOSender::State::Claiming:    snprintf(right, sizeof(right), "%s", tr("claiming", "címfoglalás")); break;
+      case MullerAuxOSender::State::CannotClaim: snprintf(right, sizeof(right), "%s", tr("no address", "nincs cím")); break;
+      default:                                   snprintf(right, sizeof(right), "%s", tr("off", "ki")); break;
     }
   } else if (cs.state == CanState::Ok && SW() >= 300) {
-    snprintf(right, sizeof(right), "%u eszköz", cs.nodes);
+    snprintf(right, sizeof(right), tr("%u nodes", "%u eszköz"), cs.nodes);
   } else {
-    snprintf(right, sizeof(right), "%s", "");
+    right[0] = 0;
   }
 
-  char all[96];
+  char all[110];
   snprintf(all, sizeof(all), "%s|%s|%s", left, mid, right);
   if (!force && strcmp(all, s_barCache) == 0) return;
   strncpy(s_barCache, all, sizeof(s_barCache) - 1);
 
-  uint16_t stc = C_WARN;
-  switch (cs.state) {
-    case CanState::Ok:           stc = C_OK; break;
-    case CanState::NoTraffic:    stc = C_WARN; break;
-    default:                     stc = C_ERR; break;
-  }
-
+  uint16_t stc = (cs.state == CanState::Ok) ? C_OK : (cs.state == CanState::NoTraffic ? C_WARN : C_ERR);
   lcd.fillRect(0, 0, SW(), STATUS_H, C_BAR);
   useFont(font_hu16);
   lcd.setTextColor(C_TEXT, C_BAR);
@@ -171,8 +205,22 @@ static void drawStatusBar(bool force) {
   lcd.drawString(right, SW() - 4, STATUS_H / 2);
 }
 
-// ---------------- Müller képernyő ----------------
-// Rajzoló adapter a muller_icons.h sablonhoz
+// =============================================================
+//  AUX-N képernyő (sima gombrács)
+// =============================================================
+static void drawAuxKey(uint8_t i, bool on) {
+  const KeyRect& k = s_keys[i];
+  uint16_t fill = on ? C_KEY_ON : C_KEY;
+  lcd.fillRoundRect(k.x, k.y, k.w, k.h, 10, fill);
+  lcd.drawRoundRect(k.x, k.y, k.w, k.h, 10, on ? C_TEXT : C_KEY_EDGE);
+  char num[4];
+  snprintf(num, sizeof(num), "%u", i + 1);
+  drawCentered(num, k.x + k.w / 2, k.y + k.h / 2, font_hu40, on ? C_BLACK : C_TEXT, fill);
+}
+
+// =============================================================
+//  Müller képernyő (JB3 stílus)
+// =============================================================
 struct LcdIconGfx {
   void wideLine(float x0, float y0, float x1, float y1, float r, uint16_t c) { lcd.drawWideLine(x0, y0, x1, y1, r, c); }
   void fillTri(int x0, int y0, int x1, int y1, int x2, int y2, uint16_t c) { lcd.fillTriangle(x0, y0, x1, y1, x2, y2, c); }
@@ -189,134 +237,202 @@ struct LcdIconGfx {
 
 static int16_t tabH() { return SH() >= 300 ? 46 : 38; }
 
-static void drawMullerTabs() {
+// Fülek: a látható rétegek (szerkesztőben mind a 3), a kijelölt teljes színnel
+static void drawTabs(bool all, uint8_t selected) {
   lcd.fillRect(0, STATUS_H, SW(), tabH(), C_BG);
+  s_tabCount = 0;
+  for (uint8_t l = 0; l < 3; l++)
+    if (all || mullerLayerVisible(g_set.mCfg, l)) s_tabLayer[s_tabCount++] = l;
+  if (s_tabCount == 0) return;
   const int16_t gap = 6;
-  const int16_t tw = (SW() - 4 * gap) / 3;
-  for (uint8_t i = 0; i < 3; i++) {
-    s_tabs[i].x = gap + i * (tw + gap);
-    s_tabs[i].y = STATUS_H + 4;
-    s_tabs[i].w = tw;
-    s_tabs[i].h = tabH() - 8;
-    bool on = (i == g_set.mullerLayer);
-    uint16_t c = on ? C_KEY_ON : C_TAB;
+  const int16_t tw = (SW() - (s_tabCount + 1) * gap) / s_tabCount;
+  for (uint8_t i = 0; i < s_tabCount; i++) {
+    uint8_t l = s_tabLayer[i];
+    s_tabs[i] = {(int16_t)(gap + i * (tw + gap)), (int16_t)(STATUS_H + 4), tw, (int16_t)(tabH() - 8)};
+    bool on = (l == selected);
+    uint16_t c = on ? C_LAYER_ON[l] : C_LAYER_DIM[l];
     lcd.fillRoundRect(s_tabs[i].x, s_tabs[i].y, s_tabs[i].w, s_tabs[i].h, 8, c);
-    drawCentered(mullerLayerName(i), s_tabs[i].x + tw / 2, s_tabs[i].y + s_tabs[i].h / 2,
-                 tw < 130 ? font_hu13 : font_hu16, on ? RGB565(0, 0, 0) : C_TEXT, c);
+    drawCentered(mullerLayerName(l, isEn()), s_tabs[i].x + tw / 2, s_tabs[i].y + s_tabs[i].h / 2,
+                 tw < 130 ? font_hu13 : font_hu16, on ? (l == 1 ? C_BLACK : C_WHITE) : C_DIM, c);
   }
 }
 
-static void drawMullerKey(uint8_t b, bool on) {
-  const KeyRect& r = s_keys[b];
-  uint8_t in = mullerInputOf(g_set.mullerLayer, b + 1);
-  const MFunc& f = mullerFunc(in);
-  bool asg = mullerAssigned(in);
-  uint16_t fill = !asg ? C_MFREE : (on ? C_KEY_ON : C_MKEY);
-  lcd.fillRoundRect(r.x, r.y, r.w, r.h, 10, fill);
-  MIconColors k{asg ? C_ICON : C_DIM, C_IBLUE, C_IRED, fill};
-  bool label = asg && r.h >= 80;
-  int iconH = r.h - (label ? 18 : 0);
-  int sz = (int)((r.w < iconH ? r.w : iconH) * 0.78f);
-  LcdIconGfx g;
-  drawMullerIcon(g, f.icon, r.x + r.w / 2, r.y + iconH / 2 + (label ? 2 : 0), sz, k);
-  if (label) drawCentered(f.label, r.x + r.w / 2, r.y + r.h - 11, font_hu13, C_ICON, fill);
-  char nb[4];
-  snprintf(nb, sizeof(nb), "B%u", b + 1);
-  drawCentered(nb, r.x + 14, r.y + 11, font_hu13, asg ? RGB565(120, 120, 130) : C_DIM, fill);
+// Színes pont a B3..B6 blokk közepén (mint a joystick LED-je)
+static void drawLayerDot(uint8_t layer) {
+  int16_t dx = (s_keys[2].x + s_keys[2].w + s_keys[3].x) / 2;
+  int16_t dy = (s_keys[2].y + s_keys[2].h + s_keys[4].y) / 2;
+  lcd.fillCircle(dx, dy, 7, layer < 3 ? C_LAYER_ON[layer] : C_DIM);
 }
 
+// Egy Müller gomb. editor = szerkesztő nézet (a kikapcsolt gomb halványan + "OFF/KI")
+static void drawMullerKeyEx(uint8_t b, uint8_t layer, bool on, bool editor) {
+  const KeyRect& r = s_keys[b];
+  uint8_t in = mullerInputOf(layer, b + 1);
+  bool assigned = mullerAssigned(in);
+  bool active = mullerBtnActive(g_set.mCfg, in);
+  bool showIcon = active || (editor && assigned);
+  uint16_t fill = !active ? C_MFREE : (on ? C_KEY_ON : C_MKEY);
+  lcd.fillRoundRect(r.x, r.y, r.w, r.h, 10, active ? C_MKEY_EDGE : C_MFREE);
+  lcd.fillRoundRect(r.x + 2, r.y + 2, r.w - 4, r.h - 4, 9, fill);
+  if (editor && on) lcd.drawRoundRect(r.x, r.y, r.w, r.h, 10, C_KEY_ON);
+
+  bool label = showIcon && r.h >= 80;
+  int iconH = r.h - (label ? 18 : 0);
+  if (showIcon) {
+    MIconColors k = active ? MIconColors{C_WHITE, C_IBLUE, C_IGREEN, fill, C_IAUTO}
+                           : MIconColors{RGB565(95, 98, 104), RGB565(60, 80, 110), RGB565(70, 100, 70), fill,
+                                         RGB565(50, 70, 50)};
+    int sz = (int)((r.w < iconH ? r.w : iconH) * 0.74f);
+    LcdIconGfx g;
+    drawMullerIcon(g, mullerIconFor(g_set.mCfg, in), r.x + r.w / 2, r.y + iconH / 2 + (label ? 3 : 0), sz, k);
+  }
+  if (label) {
+    const char* txt = (editor && !active) ? tr("OFF", "KI") : mullerLabelFor(g_set.mCfg, in, isEn());
+    drawFit(txt, r.x + r.w / 2, r.y + r.h - 11, r.w - 6, (on && active) ? C_BLACK : (active ? C_TEXT : C_DIM), fill);
+  } else if (editor && !active && assigned) {
+    drawCentered(tr("OFF", "KI"), r.x + r.w / 2, r.y + r.h / 2, font_hu13, C_DIM, fill);
+  }
+  char nb[4];
+  snprintf(nb, sizeof(nb), "B%u", b + 1);
+  drawCentered(nb, r.x + 14, r.y + 11, font_hu13, active ? RGB565(170, 172, 178) : RGB565(90, 92, 98), fill);
+}
+
+static void drawMullerKey(uint8_t b, bool on) { drawMullerKeyEx(b, g_set.mullerLayer, on, false); }
+
 static void drawKey(uint8_t i, bool on) {
-  if (isMuller()) { drawMullerKey(i, on); return; }
-  const KeyRect& k = s_keys[i];
-  uint16_t fill = on ? C_KEY_ON : C_KEY;
-  lcd.fillRoundRect(k.x, k.y, k.w, k.h, 10, fill);
-  lcd.drawRoundRect(k.x, k.y, k.w, k.h, 10, on ? C_TEXT : C_KEY_EDGE);
-  char num[4];
-  snprintf(num, sizeof(num), "%u", i + 1);
-  drawCentered(num, k.x + k.w / 2, k.y + k.h / 2, font_hu40, on ? RGB565(0, 0, 0) : C_TEXT, fill);
+  if (isMuller()) drawMullerKey(i, on);
+  else            drawAuxKey(i, on);
+}
+
+// Ha az aktuális fül nem látható (pl. önjáró profil), az első láthatóra lépünk
+static void fixMullerLayer() {
+  if (!mullerLayerVisible(g_set.mCfg, g_set.mullerLayer)) {
+    uint8_t f = mullerFirstVisible(g_set.mCfg);
+    if (f != 0xFF) g_set.mullerLayer = f;
+  }
+}
+
+static void drawMullerMain() {
+  fixMullerLayer();
+  drawTabs(false, g_set.mullerLayer);
+  if (s_tabCount == 0) {
+    drawCentered(tr("No buttons enabled", "Nincs bekapcsolt gomb"), SW() / 2, SH() / 2, font_hu16, C_WARN, C_BG);
+    drawCentered(tr("Settings > Functions > Edit buttons", "Beállítások > Funkciók > Gombok"), SW() / 2,
+                 SH() / 2 + 24, font_hu13, C_DIM, C_BG);
+    s_keyCount = 0;
+    return;
+  }
+  mullerLayout(0, STATUS_H + tabH(), SW(), SH() - STATUS_H - tabH(), s_keys);
+  s_keyCount = 8;
+  for (uint8_t i = 0; i < 8; i++) drawMullerKey(i, (int8_t)i == s_activeKey);
+  drawLayerDot(g_set.mullerLayer);
 }
 
 static void drawMain() {
   lcd.fillScreen(C_BG);
   if (isMuller()) {
-    drawMullerTabs();
-    mullerLayout(0, STATUS_H + tabH(), SW(), SH() - STATUS_H - tabH(), s_keys);
-    s_keyCount = 8;
+    drawMullerMain();
   } else {
-    s_keyCount = layoutCompute(g_set.layout, 0, STATUS_H, SW(), SH() - STATUS_H,
-                               s_keys, MAX_KEYS);
+    s_keyCount = layoutCompute(g_set.layout, 0, STATUS_H, SW(), SH() - STATUS_H, s_keys, MAX_KEYS);
+    for (uint8_t i = 0; i < s_keyCount; i++) drawAuxKey(i, (int8_t)i == s_activeKey);
   }
-  for (uint8_t i = 0; i < s_keyCount; i++) drawKey(i, (int8_t)i == s_activeKey);
   drawStatusBar(true);
 }
 
-// ---- beállítások ----
-static void settingLabel(uint8_t i, char* buf, size_t n) {
-  switch (i) {
-    case 0: snprintf(buf, n, "Kalibrálás"); break;
-    case 1: snprintf(buf, n, "Gombok: %u", g_set.layout); break;
+// ---- gombszerkesztő ----
+static void drawEditor() {
+  lcd.fillScreen(C_BG);
+  char right[24];
+  snprintf(right, sizeof(right), "%s", mullerProfileName(g_set.mProfile, isEn()));
+  drawHeader(tr("Edit buttons", "Gombok szerk."), nullptr);
+  // "Kész" gomb a fejléc jobb oldalán
+  int16_t dw = 84;
+  s_editDone = {(int16_t)(SW() - dw - 4), 2, dw, (int16_t)(STATUS_H - 4)};
+  lcd.fillRoundRect(s_editDone.x, s_editDone.y, s_editDone.w, s_editDone.h, 6, RGB565(40, 110, 60));
+  drawCentered(tr("Done", "Kész"), s_editDone.x + dw / 2, s_editDone.y + s_editDone.h / 2, font_hu16, C_WHITE,
+               RGB565(40, 110, 60));
+  // profil név középen
+  useFont(font_hu13);
+  lcd.setTextColor(C_DIM, C_BAR);
+  lcd.setTextDatum(lgfx::textdatum::middle_right);
+  lcd.drawString(right, s_editDone.x - 8, STATUS_H / 2);
+
+  drawTabs(true, s_editLayer);
+  mullerLayout(0, STATUS_H + tabH(), SW(), SH() - STATUS_H - tabH(), s_keys);
+  s_keyCount = 8;
+  for (uint8_t i = 0; i < 8; i++) drawMullerKeyEx(i, s_editLayer, false, true);
+  drawLayerDot(s_editLayer);
+}
+
+// =============================================================
+//  Beállítások
+// =============================================================
+static SetId setIdAt(uint8_t i) { return s_setPage == 0 ? SET_PAGE0[i] : SET_PAGE1[i]; }
+
+static void settingLabel(SetId id, char* buf, size_t n) {
+  switch (id) {
+    case S_CAL:     snprintf(buf, n, "%s", tr("Calibrate", "Kalibrálás")); break;
+    case S_ROT:     snprintf(buf, n, "%s", rotationName(g_set.rotation)); break;
+    case S_BRIGHT:  snprintf(buf, n, tr("Brightness %u%%", "Fény: %u%%"), (unsigned)((g_set.brightness * 100 + 127) / 255)); break;
+    case S_BEEP:    snprintf(buf, n, "%s %s", tr("Sound:", "Hang:"), g_set.beep ? tr("On", "Be") : tr("Off", "Ki")); break;
+    case S_LANG:    snprintf(buf, n, "%s", tr("Language: English", "Nyelv: Magyar")); break;
+    case S_INV:     snprintf(buf, n, "Invert: %s", g_set.invert ? tr("On", "Be") : tr("Off", "Ki")); break;
+    case S_BGR:     snprintf(buf, n, "%s %s", tr("Colors:", "Szín:"), g_set.bgr ? "BGR" : "RGB"); break;
 #if defined(BOARD_E32R35T)
-    case 2: snprintf(buf, n, "Panel: ST7796"); break;
+    case S_PANEL:   snprintf(buf, n, "Panel: ST7796"); break;
 #else
-    case 2: snprintf(buf, n, "Panel: %s", g_set.panelSt7789 ? "ST7789" : "ILI9341"); break;
+    case S_PANEL:   snprintf(buf, n, "Panel: %s", g_set.panelSt7789 ? "ST7789" : "ILI9341"); break;
 #endif
-    case 3: snprintf(buf, n, "Invert: %s", g_set.invert ? "Be" : "Ki"); break;
-    case 4: snprintf(buf, n, "Szín: %s", g_set.bgr ? "BGR" : "RGB"); break;
-    case 5: snprintf(buf, n, "Fény: %u%%", (unsigned)((g_set.brightness * 100 + 127) / 255)); break;
-    case 6: snprintf(buf, n, "Hang: %s", g_set.beep ? "Be" : "Ki"); break;
-    case 7: snprintf(buf, n, "Tájolás: %s", rotationName(g_set.rotation)); break;
-    case 8: snprintf(buf, n, "Mód: %s", isMuller() ? "Müller" : "AUX-N"); break;
-    case 9: snprintf(buf, n, "Info: CAN"); break;
-    case 10: snprintf(buf, n, "Vissza"); break;
+    case S_MORE:    snprintf(buf, n, "%s", tr("Functions >>", "Funkciók >>")); break;
+    case S_EXIT:    snprintf(buf, n, "%s", tr("Exit", "Kilépés")); break;
+    case S_MODE:    snprintf(buf, n, "%s %s", tr("Mode:", "Mód:"), isMuller() ? "Müller" : "AUX-N"); break;
+    case S_PROFILE: snprintf(buf, n, "%s %s", tr("Machine:", "Gép:"), mullerProfileName(g_set.mProfile, isEn())); break;
+    case S_EDIT:    snprintf(buf, n, "%s", tr("Edit buttons", "Gombok szerk.")); break;
+    case S_KEYS:    snprintf(buf, n, tr("AUX-N keys: %u", "AUX-N gomb: %u"), g_set.layout); break;
+    case S_CANINFO: snprintf(buf, n, "CAN info"); break;
+    case S_BACK:    snprintf(buf, n, "%s", tr("<< Back", "<< Vissza")); break;
   }
 }
 
 static void drawSettingItem(uint8_t i, bool on) {
+  SetId id = setIdAt(i);
   const KeyRect& k = s_setRects[i];
-  uint16_t fill = on ? C_KEY_ON : (i == SET_BACK ? RGB565(40, 90, 60) : C_KEY);
+  uint16_t base = (id == S_EXIT) ? RGB565(40, 90, 60) : ((id == S_MORE || id == S_BACK) ? RGB565(45, 65, 100) : C_KEY);
+  uint16_t fill = on ? C_KEY_ON : base;
   lcd.fillRoundRect(k.x, k.y, k.w, k.h, 8, fill);
   lcd.drawRoundRect(k.x, k.y, k.w, k.h, 8, C_KEY_EDGE);
-  char buf[32];
-  settingLabel(i, buf, sizeof(buf));
-  drawCentered(buf, k.x + k.w / 2, k.y + k.h / 2, font_hu16, on ? RGB565(0, 0, 0) : C_TEXT, fill);
+  char buf[40];
+  settingLabel(id, buf, sizeof(buf));
+  drawFit(buf, k.x + k.w / 2, k.y + k.h / 2, k.w - 8, on ? C_BLACK : C_TEXT, fill);
 }
 
 static void drawSettings() {
   lcd.fillScreen(C_BG);
-  lcd.fillRect(0, 0, SW(), STATUS_H, C_BAR);
-  useFont(font_hu16);
-  lcd.setTextColor(C_TEXT, C_BAR);
-  lcd.setTextDatum(lgfx::textdatum::middle_left);
-  lcd.drawString("Beállítások", 6, STATUS_H / 2);
-  lcd.setTextColor(C_DIM, C_BAR);
-  lcd.setTextDatum(lgfx::textdatum::middle_right);
-  lcd.drawString("v" FW_VERSION, SW() - 6, STATUS_H / 2);
-
-  const int16_t top = STATUS_H + 6, footer = 22, gap = 6;
+  char title[40];
+  snprintf(title, sizeof(title), "%s %u/2", tr("Settings", "Beállítások"), s_setPage + 1);
+  drawHeader(title, "v" FW_VERSION);
+  s_setCount = (s_setPage == 0) ? sizeof(SET_PAGE0) / sizeof(SET_PAGE0[0]) : sizeof(SET_PAGE1) / sizeof(SET_PAGE1[0]);
+  const int16_t top = STATUS_H + 6, footer = (SW() >= 340) ? 22 : 40, gap = 6;
   const int16_t w = (SW() - 3 * gap) / 2;
-  const int16_t rows = (SET_ITEMS + 1) / 2;
+  const int16_t rows = (s_setCount + 1) / 2;
   const int16_t h = (SH() - top - footer - rows * gap) / rows;
-  for (uint8_t i = 0; i < SET_ITEMS; i++) {
-    s_setRects[i].x = gap + (i % 2) * (w + gap);
-    s_setRects[i].y = top + (i / 2) * (h + gap);
-    s_setRects[i].w = w;
-    s_setRects[i].h = h;
+  for (uint8_t i = 0; i < s_setCount; i++) {
+    s_setRects[i] = {(int16_t)(gap + (i % 2) * (w + gap)), (int16_t)(top + (i / 2) * (h + gap)), w, h};
     drawSettingItem(i, false);
   }
-  drawCredit(SH() - footer / 2 - 1, C_DIM);
+  drawCredit(SH() - 12, C_DIM);
 }
 
 // =============================================================
 //  Önteszt, nyitókép, kalibrálás
 // =============================================================
 static void selfTest() {
-  const char* names[4] = {"PIROS", "ZÖLD", "KÉK", "FEHÉR"};
+  const char* names[4] = {tr("RED", "PIROS"), tr("GREEN", "ZÖLD"), tr("BLUE", "KÉK"), tr("WHITE", "FEHÉR")};
   const uint16_t cols[4] = {RGB565(255, 0, 0), RGB565(0, 255, 0), RGB565(0, 0, 255), RGB565(255, 255, 255)};
   const int16_t w = SW() / 4;
   for (int i = 0; i < 4; i++) {
     lcd.fillRect(i * w, 0, w, SH(), cols[i]);
-    drawCentered(names[i], i * w + w / 2, SH() / 2, font_hu16,
-                 i == 3 ? RGB565(0, 0, 0) : RGB565(255, 255, 255), cols[i]);
+    drawCentered(names[i], i * w + w / 2, SH() / 2, font_hu16, i == 3 ? C_BLACK : RGB565(255, 255, 255), cols[i]);
   }
   fbLedRaw(true, false, false);  delay(250);
   fbLedRaw(false, true, false);  delay(250);
@@ -329,9 +445,9 @@ static void selfTest() {
 
 static void doCalibrate() {
   lcd.fillScreen(C_BG);
-  drawCentered("Érintés kalibrálás", SW() / 2, SH() / 2 - 30, font_hu22, C_TEXT, C_BG);
-  drawCentered("Érintsd meg sorban", SW() / 2, SH() / 2 + 10, font_hu16, C_DIM, C_BG);
-  drawCentered("a nyilak hegyét", SW() / 2, SH() / 2 + 32, font_hu16, C_DIM, C_BG);
+  drawCentered(tr("Touch calibration", "Érintés kalibrálás"), SW() / 2, SH() / 2 - 30, font_hu22, C_TEXT, C_BG);
+  drawCentered(tr("Touch the arrow tips", "Érintsd meg sorban"), SW() / 2, SH() / 2 + 10, font_hu16, C_DIM, C_BG);
+  drawCentered(tr("one after another", "a nyilak hegyét"), SW() / 2, SH() / 2 + 32, font_hu16, C_DIM, C_BG);
   delay(1500);
   forgetFont();
   const uint16_t fg = RGB565(255, 255, 255), bg = C_BG;
@@ -341,9 +457,8 @@ static void doCalibrate() {
   settingsSave();
   Serial.println("[TOUCH] kalibráció mentve");
   fbBeep(2000, 60);
-  // várjuk meg, hogy felengedje
   int32_t x, y;
-  while (lcd.getTouch(&x, &y)) delay(10);
+  while (lcd.getTouch(&x, &y)) delay(10);   // várjuk meg, hogy felengedje
   delay(200);
 }
 
@@ -362,9 +477,9 @@ static void splash() {
   drawCentered("AUX-N", SW() / 2, cy - 72, font_hu40, C_KEY_ON, C_BG);
   drawCentered("Touch Joystick", SW() / 2, cy - 32, font_hu22, C_TEXT, C_BG);
   drawCentered("v" FW_VERSION "  " BOARD_NAME, SW() / 2, cy - 6, font_hu16, C_DIM, C_BG);
-  drawCentered("Érintés 1 mp: kalibrálás", SW() / 2, cy + 30, font_hu16, C_DIM, C_BG);
+  drawCentered(tr("Touch 1 s: calibrate", "Érintés 1 mp: kalibrálás"), SW() / 2, cy + 30, font_hu16, C_DIM, C_BG);
 #if !defined(BOARD_E32R35T)
-  drawCentered("BOOT 2 mp: panel váltás", SW() / 2, cy + 52, font_hu16, C_DIM, C_BG);
+  drawCentered(tr("BOOT 2 s: panel type", "BOOT 2 mp: panel váltás"), SW() / 2, cy + 52, font_hu16, C_DIM, C_BG);
 #endif
   drawCredit(SH() - 24, C_TEXT);
 
@@ -423,8 +538,8 @@ static void setActiveKey(int8_t k) {
     if (isMuller()) {
       uint8_t in = mullerInputOf(g_set.mullerLayer, k + 1);
       bool sent = s_muller.press(in, now);
-      Serial.printf("[ME] %s B%d (gombszám %u, %s)%s\n", mullerLayerName(g_set.mullerLayer), k + 1, in,
-                    mullerFunc(in).label, sent ? "" : "  -> NINCS ELKÜLDVE (nincs cím)");
+      Serial.printf("[ME] %s B%d (gombszám %u, %s)%s\n", mullerLayerName(g_set.mullerLayer, false), k + 1, in,
+                    mullerLabelFor(g_set.mCfg, in, false), sent ? "" : "  -> NINCS ELKÜLDVE (nincs cím)");
     } else {
       g_keyDown[k] = true;
       Serial.printf("[KEY] %d LE\n", k + 1);
@@ -436,13 +551,14 @@ static void setActiveKey(int8_t k) {
 }
 
 static void setMullerLayer(uint8_t layer) {
-  if (layer > 2) layer = 0;
+  if (layer > 2) return;
   setActiveKey(-1);
   g_set.mullerLayer = layer;
   settingsSave();
-  Serial.printf("[ME] fül: %s\n", mullerLayerName(layer));
-  drawMullerTabs();
+  Serial.printf("[ME] fül: %s\n", mullerLayerName(layer, false));
+  drawTabs(false, layer);
   for (uint8_t i = 0; i < 8; i++) drawMullerKey(i, false);
+  drawLayerDot(layer);
 }
 
 static void applyMode() {
@@ -461,7 +577,9 @@ static void enterScreen(Screen s) {
   setActiveKey(-1);
   s_setPressed = -1;
   s_screen = s;
-  if (s == Screen::Main) drawMain(); else drawSettings();
+  if (s == Screen::Main) drawMain();
+  else if (s == Screen::Editor) drawEditor();
+  else drawSettings();
 }
 
 // CAN diagnosztika képernyő: érintésre vagy BOOT-ra kilép
@@ -469,12 +587,8 @@ static void showCanInfo() {
   int32_t x, y;
   while (lcd.getTouch(&x, &y)) delay(10);   // előbb engedje fel
   lcd.fillScreen(C_BG);
-  lcd.fillRect(0, 0, SW(), STATUS_H, C_BAR);
-  useFont(font_hu16);
-  lcd.setTextColor(C_TEXT, C_BAR);
-  lcd.setTextDatum(lgfx::textdatum::middle_left);
-  lcd.drawString("CAN diagnosztika", 6, STATUS_H / 2);
-  drawCentered("Érintés: vissza", SW() / 2, SH() - 14, font_hu16, C_DIM, C_BG);
+  drawHeader(tr("CAN diagnostics", "CAN diagnosztika"), nullptr);
+  drawCentered(tr("Touch: back", "Érintés: vissza"), SW() / 2, SH() - 14, font_hu16, C_DIM, C_BG);
 
   uint32_t last = 0;
   while (true) {
@@ -486,18 +600,19 @@ static void showCanInfo() {
     if (now - last < 300) { delay(5); continue; }
     last = now;
     const CanStats& cs = canStats();
-    char l[8][40];
-    snprintf(l[0], 40, "%s", canStateText(cs.state));
-    snprintf(l[1], 40, "Forgalom: %lu frame/s", (unsigned long)cs.fps);
-    snprintf(l[2], 40, "Eszközök: %u", cs.nodes);
-    if (cs.vtSeen) snprintf(l[3], 40, "VT (terminál): cím %u", cs.vtAddr);
-    else           snprintf(l[3], 40, "VT (terminál): nem látszik");
-    snprintf(l[4], 40, "Hibaszámláló TX/RX: %lu / %lu", (unsigned long)cs.txErr, (unsigned long)cs.rxErr);
-    snprintf(l[5], 40, "Összes frame: %lu", (unsigned long)cs.totalRx);
-    snprintf(l[6], 40, "Lábak: TX=IO%d  RX=IO%d", PIN_CAN_TX, PIN_CAN_RX);
-    if (!isMuller())                snprintf(l[7], 40, "Müller mód: ki");
-    else if (s_muller.claimed())    snprintf(l[7], 40, "Müller: cím 0x%02X", s_muller.address());
-    else                            snprintf(l[7], 40, "Müller: nincs cím");
+    char l[8][44];
+    snprintf(l[0], 44, "%s", canStateText(cs.state, isHu()));
+    snprintf(l[1], 44, tr("Traffic: %lu frame/s", "Forgalom: %lu frame/s"), (unsigned long)cs.fps);
+    snprintf(l[2], 44, tr("Nodes: %u", "Eszközök: %u"), cs.nodes);
+    if (cs.vtSeen) snprintf(l[3], 44, tr("VT (terminal): addr %u", "VT (terminál): cím %u"), cs.vtAddr);
+    else           snprintf(l[3], 44, "%s", tr("VT (terminal): not seen", "VT (terminál): nem látszik"));
+    snprintf(l[4], 44, tr("Error count TX/RX: %lu / %lu", "Hibaszámláló TX/RX: %lu / %lu"),
+             (unsigned long)cs.txErr, (unsigned long)cs.rxErr);
+    snprintf(l[5], 44, tr("Total frames: %lu", "Összes frame: %lu"), (unsigned long)cs.totalRx);
+    snprintf(l[6], 44, tr("Pins: TX=IO%d  RX=IO%d", "Lábak: TX=IO%d  RX=IO%d"), PIN_CAN_TX, PIN_CAN_RX);
+    if (!isMuller())             snprintf(l[7], 44, "%s", tr("Müller mode: off", "Müller mód: ki"));
+    else if (s_muller.claimed()) snprintf(l[7], 44, tr("Müller: addr 0x%02X", "Müller: cím 0x%02X"), s_muller.address());
+    else                         snprintf(l[7], 44, "%s", tr("Müller: no address", "Müller: nincs cím"));
     useFont(font_hu16);
     lcd.setTextDatum(lgfx::textdatum::middle_left);
     for (int i = 0; i < 8; i++) {
@@ -511,34 +626,29 @@ static void showCanInfo() {
   delay(100);
 }
 
+static void showRestart() {
+  settingsSave();
+  lcd.fillScreen(C_BG);
+  drawCentered(tr("Restarting...", "Újraindítás..."), SW() / 2, SH() / 2, font_hu22, C_TEXT, C_BG);
+  delay(600);
+  ESP.restart();
+}
+
 static void settingAction(uint8_t i) {
-  switch (i) {
-    case 0:
+  SetId id = setIdAt(i);
+  switch (id) {
+    case S_CAL:
       doCalibrate();
       drawSettings();
       return;
-    case 1:
-      g_set.layout = nextLayout(g_set.layout);
-      break;
-    case 2:
-    case 4: {
-#if defined(BOARD_E32R35T)
-      if (i == 2) return;   // 3.5"-on csak ST7796 van
-#endif
-      if (i == 2) { g_set.panelSt7789 = !g_set.panelSt7789; g_set.invert = g_set.panelSt7789; }
-      else        { g_set.bgr = !g_set.bgr; }
+    case S_ROT:
+      g_set.rotation = nextRotation(g_set.rotation);
       settingsSave();
-      lcd.fillScreen(C_BG);
-      drawCentered("Újraindítás...", SW() / 2, SH() / 2, font_hu22, C_TEXT, C_BG);
-      delay(600);
-      ESP.restart();
+      lcd.setRotation(g_set.rotation);
+      doCalibrate();          // új tájolásnál újrakalibrálunk
+      drawSettings();
       return;
-    }
-    case 3:
-      g_set.invert = !g_set.invert;
-      lcd.invertDisplay(g_set.invert);
-      break;
-    case 5: {
+    case S_BRIGHT: {
       static const uint8_t lv[4] = {64, 128, 192, 255};
       uint8_t idx = 0;
       for (uint8_t j = 0; j < 4; j++) if (g_set.brightness >= lv[j]) idx = j;
@@ -546,32 +656,114 @@ static void settingAction(uint8_t i) {
       lcd.setBrightness(g_set.brightness);
       break;
     }
-    case 6:
+    case S_BEEP:
       g_set.beep = !g_set.beep;
       break;
-    case 7:
-      g_set.rotation = nextRotation(g_set.rotation);
+    case S_LANG:
+      g_set.lang = isHu() ? LANG_EN : LANG_HU;
       settingsSave();
-      lcd.setRotation(g_set.rotation);
-      setActiveKey(-1);
-      doCalibrate();          // új tájolásnál újrakalibrálunk
+      drawSettings();         // minden felirat nyelve változik
+      return;
+    case S_INV:
+      g_set.invert = !g_set.invert;
+      lcd.invertDisplay(g_set.invert);
+      break;
+    case S_BGR:
+      g_set.bgr = !g_set.bgr;
+      showRestart();
+      return;
+    case S_PANEL:
+#if defined(BOARD_E32R35T)
+      return;                 // 3.5"-on csak ST7796 van
+#else
+      g_set.panelSt7789 = !g_set.panelSt7789;
+      g_set.invert = g_set.panelSt7789;
+      showRestart();
+      return;
+#endif
+    case S_MORE:
+      s_setPage = 1;
       drawSettings();
       return;
-    case 8:
+    case S_BACK:
+      s_setPage = 0;
+      drawSettings();
+      return;
+    case S_EXIT:
+      settingsSave();
+      enterScreen(Screen::Main);
+      return;
+    case S_MODE:
       g_set.mode = isMuller() ? MODE_AUXN : MODE_MULLER;
       applyMode();
       break;
-    case 9:
+    case S_PROFILE: {
+      // Vontatott -> Vont. JB3 -> Önjáró -> Vontatott (egyéniről a Vontatottra)
+      uint8_t p = (g_set.mProfile >= PROF_CUSTOM) ? PROF_TOWED_OWN : (uint8_t)((g_set.mProfile + 1) % PROF_COUNT_PRESET);
+      mullerApplyProfile(p, g_set.mCfg);
+      g_set.mProfile = p;
+      fixMullerLayer();
+      Serial.printf("[ME] gépprofil: %s\n", mullerProfileName(p, false));
+      break;
+    }
+    case S_EDIT:
+      s_editLayer = g_set.mullerLayer;
+      settingsSave();
+      enterScreen(Screen::Editor);
+      return;
+    case S_KEYS:
+      g_set.layout = nextLayout(g_set.layout);
+      break;
+    case S_CANINFO:
       showCanInfo();
       drawSettings();
-      return;
-    case SET_BACK:
-      settingsSave();
-      enterScreen(Screen::Main);
       return;
   }
   settingsSave();
   drawSettingItem(i, false);
+}
+
+// Szerkesztő érintés: fül -> kijelölés; gomb -> állapot léptetés; Kész -> vissza a beállításokhoz
+// Kódok s_setPressed-ben: 0..7 = gomb, 10..12 = fül (index), 20 = Kész
+static int8_t editorHit(int16_t x, int16_t y) {
+  if (layoutHitTest(&s_editDone, 1, x, y, 0) == 0) return 20;
+  int8_t t = layoutHitTest(s_tabs, s_tabCount, x, y, 2);
+  if (t >= 0) return 10 + t;
+  return layoutHitTest(s_keys, 8, x, y, BUTTON_DEADZONE);
+}
+
+static void editorAction(int8_t hit) {
+  if (hit == 20) {
+    g_set.mProfile = mullerProfileOf(g_set.mCfg);
+    fixMullerLayer();
+    settingsSave();
+    s_setPage = 1;
+    enterScreen(Screen::Settings);
+    return;
+  }
+  if (hit >= 10 && hit < 13) {
+    s_editLayer = s_tabLayer[hit - 10];
+    drawTabs(true, s_editLayer);
+    for (uint8_t i = 0; i < 8; i++) drawMullerKeyEx(i, s_editLayer, false, true);
+    drawLayerDot(s_editLayer);
+    return;
+  }
+  if (hit >= 0 && hit < 8) {
+    uint8_t in = mullerInputOf(s_editLayer, hit + 1);
+    if (!mullerAssigned(in)) { fbBeep(600, 80); return; }   // kiosztatlan, nem szerkeszthető
+    g_set.mCfg[in] = mullerNextState(g_set.mCfg, in);
+    g_set.mProfile = mullerProfileOf(g_set.mCfg);
+    settingsSave();
+    Serial.printf("[ME] szerk.: %s B%d -> %s\n", mullerLayerName(s_editLayer, false), hit + 1,
+                  g_set.mCfg[in] == BTN_OFF ? "KI" : (g_set.mCfg[in] == BTN_ALT ? "ALT ikon" : "BE"));
+    drawMullerKeyEx(hit, s_editLayer, false, true);
+    // fejléc profilnév frissítése
+    useFont(font_hu13);
+    lcd.fillRect(SW() / 2, 0, s_editDone.x - SW() / 2 - 2, STATUS_H, C_BAR);
+    lcd.setTextColor(C_DIM, C_BAR);
+    lcd.setTextDatum(lgfx::textdatum::middle_right);
+    lcd.drawString(mullerProfileName(g_set.mProfile, isEn()), s_editDone.x - 8, STATUS_H / 2);
+  }
 }
 
 static void handleTouch(uint32_t now) {
@@ -582,13 +774,14 @@ static void handleTouch(uint32_t now) {
 
   if (s_screen == Screen::Main && isMuller()) {
     if (s_touch.pressed()) {
-      int8_t t = layoutHitTest(s_tabs, 3, s_touch.x(), s_touch.y(), 2);
+      int8_t t = layoutHitTest(s_tabs, s_tabCount, s_touch.x(), s_touch.y(), 2);
       if (t >= 0) {
-        if (t != g_set.mullerLayer) { fbBeep(1800, 30); setMullerLayer(t); }
+        uint8_t l = s_tabLayer[t];
+        if (l != g_set.mullerLayer) { fbBeep(1800, 30); setMullerLayer(l); }
         return;
       }
-      int8_t b = layoutHitTest(s_keys, 8, s_touch.x(), s_touch.y(), BUTTON_DEADZONE);
-      if (b >= 0 && !mullerAssigned(mullerInputOf(g_set.mullerLayer, b + 1))) b = -1;  // szabad gomb
+      int8_t b = (s_keyCount == 8) ? layoutHitTest(s_keys, 8, s_touch.x(), s_touch.y(), BUTTON_DEADZONE) : -1;
+      if (b >= 0 && !mullerBtnActive(g_set.mCfg, mullerInputOf(g_set.mullerLayer, b + 1))) b = -1;  // rejtett gomb
       setActiveKey(b);
     } else {
       if (s_touch.blocked()) Serial.println("[TOUCH] ugrás tartás közben -> elengedve");
@@ -601,10 +794,22 @@ static void handleTouch(uint32_t now) {
       if (s_touch.blocked()) Serial.println("[TOUCH] ugrás tartás közben -> elengedve");
       setActiveKey(-1);
     }
+  } else if (s_screen == Screen::Editor) {
+    // felengedésre hajtjuk végre
+    if (s_touch.pressed()) {
+      s_setPressed = editorHit(s_touch.x(), s_touch.y());
+      if (s_setPressed >= 0 && s_setPressed < 8) drawMullerKeyEx(s_setPressed, s_editLayer, true, true);
+      if (s_setPressed >= 0) fbBeep(2400, 25);
+    } else {
+      int8_t it = s_setPressed;
+      s_setPressed = -1;
+      if (it >= 0 && it < 8) drawMullerKeyEx(it, s_editLayer, false, true);
+      if (it >= 0 && !s_touch.blocked()) editorAction(it);
+    }
   } else {
     // beállításoknál felengedésre hajtjuk végre (ne ismétlődjön)
     if (s_touch.pressed()) {
-      s_setPressed = layoutHitTest(s_setRects, SET_ITEMS, s_touch.x(), s_touch.y(), 2);
+      s_setPressed = layoutHitTest(s_setRects, s_setCount, s_touch.x(), s_touch.y(), 2);
       if (s_setPressed >= 0) { drawSettingItem(s_setPressed, true); fbBeep(2400, 25); }
     } else {
       int8_t it = s_setPressed;
@@ -627,7 +832,8 @@ static void handleBoot(uint32_t now) {
     if (!s_bootLongFired && now - s_bootT0 >= 2000) {
       s_bootLongFired = true;
       fbBeep(1200, 120);
-      enterScreen(s_screen == Screen::Main ? Screen::Settings : Screen::Main);
+      if (s_screen == Screen::Main) { s_setPage = 0; enterScreen(Screen::Settings); }
+      else                          enterScreen(Screen::Main);
     }
   } else if (!down && s_bootDown) {
     s_bootDown = false;
@@ -635,8 +841,8 @@ static void handleBoot(uint32_t now) {
     if (!s_bootLongFired && dur >= 40 && dur < 800) {
       if (s_screen == Screen::Main) {
         if (s_activeKey < 0 && isMuller()) {
-          fbBeep(1800, 40);
-          setMullerLayer((g_set.mullerLayer + 1) % 3);
+          uint8_t nl = mullerNextVisible(g_set.mCfg, g_set.mullerLayer);
+          if (nl != 0xFF && nl != g_set.mullerLayer) { fbBeep(1800, 40); setMullerLayer(nl); }
         } else if (s_activeKey < 0) {
           g_set.layout = nextLayout(g_set.layout);
           settingsSave();
@@ -644,6 +850,8 @@ static void handleBoot(uint32_t now) {
           fbBeep(1800, 40);
           drawMain();
         }
+      } else if (s_screen == Screen::Editor) {
+        editorAction(20);    // BOOT = Kész
       } else {
         enterScreen(Screen::Main);
       }
@@ -671,9 +879,10 @@ void setup() {
 
   pinMode(PIN_BOOT, INPUT_PULLUP);
   settingsLoad();
-  Serial.printf("[SET] panel=%s invert=%d bgr=%d layout=%u cal=%d mód=%s\n",
-                g_set.panelSt7789 ? "ST7789" : "ILI9341", g_set.invert, g_set.bgr,
-                g_set.layout, g_set.calValid, g_set.mode == MODE_MULLER ? "Müller" : "AUX-N");
+  Serial.printf("[SET] panel=%s invert=%d bgr=%d layout=%u cal=%d mód=%s nyelv=%s profil=%s\n",
+                g_set.panelSt7789 ? "ST7789" : "ILI9341", g_set.invert, g_set.bgr, g_set.layout, g_set.calValid,
+                g_set.mode == MODE_MULLER ? "Müller" : "AUX-N", isHu() ? "HU" : "EN",
+                mullerProfileName(g_set.mProfile, false));
 
   fbBegin();
 
@@ -724,7 +933,7 @@ void loop() {
     lastLog = now;
     const CanStats& cs = canStats();
     Serial.printf("[CAN] %s  %lu f/s  %u eszköz  VT:%s  TEC=%lu REC=%lu  össz=%lu\n",
-                  canStateText(cs.state), (unsigned long)cs.fps, cs.nodes,
+                  canStateText(cs.state, true), (unsigned long)cs.fps, cs.nodes,
                   cs.vtSeen ? "igen" : "nem", (unsigned long)cs.txErr,
                   (unsigned long)cs.rxErr, (unsigned long)cs.totalRx);
   }

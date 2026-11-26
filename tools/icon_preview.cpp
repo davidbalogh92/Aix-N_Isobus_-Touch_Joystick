@@ -10,6 +10,7 @@
 #include <string>
 #include "keys.h"
 #include "muller_funcs.h"
+#include "muller_profile.h"
 #include "muller_icons.h"
 
 #define RGB565(r, g, b) (uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
@@ -72,44 +73,62 @@ struct Mock {
   }
 };
 
-// a firmware színei (main.cpp-vel egyezően)
+// a firmware színei (main.cpp-vel egyezően) - JB3 stílus
 static const uint16_t C_BG = RGB565(16, 18, 22), C_BAR = RGB565(36, 40, 48);
-static const uint16_t C_MKEY = RGB565(228, 230, 234), C_MFREE = RGB565(58, 62, 72);
-static const uint16_t C_TAB = RGB565(52, 58, 70), C_TAB_ON = RGB565(255, 150, 0);
+static const uint16_t C_MKEY = RGB565(74, 76, 80), C_MKEY_EDGE = RGB565(120, 124, 130);
+static const uint16_t C_MFREE = RGB565(44, 46, 50), C_MPRESS = RGB565(255, 150, 0);
 static const uint16_t C_TEXT = RGB565(235, 235, 235), C_DIM = RGB565(150, 155, 165);
+static const uint16_t C_WHITE = RGB565(245, 245, 245);
+static const uint16_t LAYER_ON[3]  = {RGB565(230, 40, 40), RGB565(245, 200, 30), RGB565(70, 190, 70)};
+static const uint16_t LAYER_DIM[3] = {RGB565(90, 30, 30), RGB565(95, 80, 20), RGB565(30, 80, 35)};
 
-static void renderScreen(int W, int H, int statusH, int tabH, uint8_t layer, int pressedBtn) {
+static void renderScreen(int W, int H, int statusH, int tabH, uint8_t layer, int pressedBtn,
+                         const uint8_t* cfg, bool editor = false) {
   Mock g(W, H);
   g.fillRect(0, 0, W, H, C_BG);
   g.fillRect(0, 0, W, statusH, C_BAR);
-  g.textSz("Müller   CAN: OK   cím 0x90", W / 2, statusH / 2, 16, C_TEXT, C_BAR);
-  // fülek
-  int tw = (W - 4 * 6) / 3;
-  for (int i = 0; i < 3; i++) {
-    int x = 6 + i * (tw + 6);
-    uint16_t c = (i == layer) ? C_TAB_ON : C_TAB;
+  g.textSz(editor ? "Edit buttons        Towed   [Done]" : "Müller   CAN: OK   addr 0x90", W / 2, statusH / 2, 16, C_TEXT, C_BAR);
+  int vis[3], nv = 0;
+  for (int l = 0; l < 3; l++) if (editor || mullerLayerVisible(cfg, l)) vis[nv++] = l;
+  int tw = (W - (nv + 1) * 6) / nv;
+  for (int t = 0; t < nv; t++) {
+    int i = vis[t];
+    int x = 6 + t * (tw + 6);
+    bool on = (i == layer);
+    uint16_t c = on ? LAYER_ON[i] : LAYER_DIM[i];
     g.roundRect(x, statusH + 4, tw, tabH - 8, 8, c);
-    g.textSz(mullerLayerName(i), x + tw / 2, statusH + tabH / 2, tw < 130 ? 13 : 16, i == layer ? 0 : C_TEXT, c);
+    g.textSz(mullerLayerName(i, true), x + tw / 2, statusH + tabH / 2, tw < 130 ? 13 : 16,
+             on ? (i == 1 ? RGB565(0, 0, 0) : C_WHITE) : C_DIM, c);
   }
   KeyRect r[8];
   mullerLayout(0, statusH + tabH, W, H - statusH - tabH, r);
-  MIconColors k{RGB565(20, 20, 24), RGB565(0, 110, 230), RGB565(225, 30, 30), C_MKEY};
+  // jobb blokk körvonal + középső színes pont (mint a joystickon)
+  int bx0 = r[2].x - 4, by0 = r[2].y - 4, bx1 = r[3].x + r[3].w + 4, by1 = r[5].y + r[5].h + 4;
+  int dotx = (r[2].x + r[2].w + r[3].x) / 2, doty = (r[2].y + r[2].h + r[4].y) / 2;
+  (void)bx0; (void)by0; (void)bx1; (void)by1;
+  MIconColors k{C_WHITE, RGB565(30, 140, 235), RGB565(80, 210, 70), C_MKEY, RGB565(60, 170, 60)};
   for (int b = 0; b < 8; b++) {
     uint8_t in = mullerInputOf(layer, b + 1);
-    const MFunc& f = mullerFunc(in);
-    bool asg = mullerAssigned(in);
-    uint16_t fill = !asg ? C_MFREE : (b == pressedBtn ? C_TAB_ON : C_MKEY);
-    g.roundRect(r[b].x, r[b].y, r[b].w, r[b].h, 10, fill);
+    bool asg = mullerBtnActive(cfg, in);
+    bool showIcon = asg || (editor && mullerAssigned(in));
+    uint16_t fill = !asg ? C_MFREE : (b == pressedBtn ? C_MPRESS : C_MKEY);
+    g.roundRect(r[b].x, r[b].y, r[b].w, r[b].h, 10, asg ? C_MKEY_EDGE : C_MFREE);
+    g.roundRect(r[b].x + 2, r[b].y + 2, r[b].w - 4, r[b].h - 4, 9, fill);
     k.bg = fill;
-    k.fg = asg ? RGB565(20, 20, 24) : C_DIM;
-    bool label = asg && r[b].h >= 80;
+    bool label = showIcon && r[b].h >= 80;
     int iconH = r[b].h - (label ? 18 : 0);
-    int s = (int)(std::min((int)r[b].w, iconH) * 0.78f);
-    drawMullerIcon(g, f.icon, r[b].x + r[b].w / 2, r[b].y + iconH / 2 + (label ? 2 : 0), s, k);
-    if (label) g.textSz(f.label, r[b].x + r[b].w / 2, r[b].y + r[b].h - 11, 13, RGB565(20, 20, 24), fill);
+    int s = (int)(std::min((int)r[b].w, iconH) * 0.74f);
+    MIconColors kk = asg ? k : MIconColors{RGB565(95, 98, 104), RGB565(60, 80, 110), RGB565(70, 100, 70), fill, RGB565(50, 70, 50)};
+    kk.bg = fill;
+    if (showIcon) drawMullerIcon(g, mullerIconFor(cfg, in), r[b].x + r[b].w / 2, r[b].y + iconH / 2 + (label ? 3 : 0), s, kk);
+    if (label) g.textSz(asg ? mullerLabelFor(cfg, in, true) : "OFF", r[b].x + r[b].w / 2, r[b].y + r[b].h - 11, 13, asg ? C_TEXT : C_DIM, fill);
     char nb[4]; snprintf(nb, 4, "B%d", b + 1);
-    g.textSz(nb, r[b].x + 14, r[b].y + 11, 12, asg ? RGB565(120, 120, 130) : C_DIM, fill);
+    g.textSz(nb, r[b].x + 14, r[b].y + 11, 11, asg ? RGB565(170, 172, 178) : RGB565(90, 92, 98), fill);
   }
+  // színes pont a B3-B6 blokk közepén
+  for (int y = doty - 7; y <= doty + 7; y++)
+    for (int x = dotx - 7; x <= dotx + 7; x++)
+      if ((x - dotx) * (x - dotx) + (y - doty) * (y - doty) <= 49) g.set(x, y, LAYER_ON[layer]);
   printf("IMG %d %d\n", W, H);
   for (int i = 0; i < W * H; i++) printf("%04X", g.px[i]);
   printf("\n");
@@ -118,9 +137,16 @@ static void renderScreen(int W, int H, int statusH, int tabH, uint8_t layer, int
 }
 
 int main() {
-  // álló 3,5" (320x480): mindhárom fül
-  for (int L = 0; L < 3; L++) renderScreen(320, 480, 30, 46, L, L == 2 ? 2 : -1);
-  // fekvő 3,5" (480x320): permetezés fül
-  renderScreen(480, 320, 30, 46, 1, -1);
+  uint8_t own[24], jb3[24], self_[24];
+  mullerApplyProfile(PROF_TOWED_OWN, own);
+  mullerApplyProfile(PROF_TOWED_JB3, jb3);
+  mullerApplyProfile(PROF_SELF, self_);
+  // álló 3,5": saját vontatott profil mindhárom fül (TRAIL-en B5 nyomva), szerkesztő (TRAIL), önjáró
+  renderScreen(320, 480, 30, 46, 0, 4, own);
+  renderScreen(320, 480, 30, 46, 1, -1, own);
+  renderScreen(320, 480, 30, 46, 2, -1, own);
+  renderScreen(320, 480, 30, 46, 0, -1, own, true);
+  renderScreen(320, 480, 30, 46, 0, -1, jb3);
+  renderScreen(320, 480, 30, 46, 1, -1, self_);
   return 0;
 }

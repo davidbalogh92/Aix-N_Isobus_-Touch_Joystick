@@ -1,5 +1,6 @@
 #include "settings.h"
 #include <Preferences.h>
+#include "muller_profile.h"
 
 Settings g_set;
 
@@ -19,6 +20,14 @@ void settingsLoad() {
   g_set.mullerLayer = p.getUChar("mlayer", 1);
   if (g_set.mode > MODE_MULLER) g_set.mode = MODE_AUXN;
   if (g_set.mullerLayer > 2) g_set.mullerLayer = 1;
+  g_set.lang        = p.getUChar("lang", LANG_EN) ? LANG_HU : LANG_EN;
+  g_set.mProfile    = p.getUChar("mprof", PROF_TOWED_OWN);
+  if (p.getBytes("mcfg", g_set.mCfg, sizeof(g_set.mCfg)) != sizeof(g_set.mCfg)) {
+    if (g_set.mProfile >= PROF_CUSTOM) g_set.mProfile = PROF_TOWED_OWN;
+    mullerApplyProfile(g_set.mProfile, g_set.mCfg);
+  }
+  for (uint8_t i = 0; i < 24; i++) if (g_set.mCfg[i] > BTN_ALT) g_set.mCfg[i] = BTN_ON;
+  g_set.mProfile = mullerProfileOf(g_set.mCfg);
   g_set.calValid    = p.getBool("calok", false);
   if (g_set.calValid) {
     if (p.getBytes("cal", g_set.cal, sizeof(g_set.cal)) != sizeof(g_set.cal)) {
@@ -42,6 +51,9 @@ void settingsSave() {
   p.putUChar("rot", g_set.rotation);
   p.putUChar("mode", g_set.mode);
   p.putUChar("mlayer", g_set.mullerLayer);
+  p.putUChar("lang", g_set.lang);
+  p.putUChar("mprof", g_set.mProfile);
+  p.putBytes("mcfg", g_set.mCfg, sizeof(g_set.mCfg));
   p.putBool("calok", g_set.calValid);
   p.putBytes("cal", g_set.cal, sizeof(g_set.cal));
   p.end();

@@ -8,6 +8,7 @@
 #include "keys.h"
 #include "muller_out.h"
 #include "muller_funcs.h"
+#include "muller_profile.h"
 
 struct Frame { uint32_t id; uint8_t d[8]; uint8_t len; };
 static std::vector<Frame> tx;
@@ -67,17 +68,21 @@ static void test_name() {
 
 static void test_funcs() {
   // táblázat a docs/muller szerint
-  assert(mullerInputOf(0, 3) == 2 && mullerFunc(2).icon == MIcon::TrailCenter && mullerFunc(2).hold);
+  // TRAIL a felhasználó gépe szerint: B5 = középre (tartásos), B4/B6 = keret össze/kinyitás, B3 = lakat (gyári)
+  assert(mullerInputOf(0, 5) == 3 && mullerFunc(3).icon == MIcon::TrailCenter && mullerFunc(3).hold);
+  assert(mullerInputOf(0, 4) == 4 && mullerFunc(4).icon == MIcon::FoldIn && mullerFunc(4).hold);
+  assert(mullerInputOf(0, 6) == 5 && mullerFunc(5).icon == MIcon::FoldOut && mullerFunc(5).hold);
+  assert(mullerInputOf(0, 3) == 2 && mullerFunc(2).icon == MIcon::AxleLock);
   assert(mullerInputOf(1, 4) == 12 && mullerFunc(12).icon == MIcon::SectOnLR);
   assert(mullerInputOf(1, 5) == 11 && mullerFunc(11).icon == MIcon::SectOffLR);
   assert(mullerInputOf(2, 3) == 18 && mullerFunc(18).icon == MIcon::BoomUp);
   assert(mullerInputOf(2, 5) == 19 && mullerFunc(19).icon == MIcon::BoomDown);
   assert(mullerInputOf(2, 8) == 23);
-  assert(!mullerAssigned(mullerInputOf(0, 4)) && !mullerAssigned(mullerInputOf(2, 2)));
+  assert(!mullerAssigned(mullerInputOf(2, 2)));
   assert(mullerInputOf(3, 1) == 0xFF && mullerInputOf(0, 9) == 0xFF);
   int assigned = 0;
   for (int i = 0; i < 24; i++) assigned += mullerAssigned(i);
-  assert(assigned == 20);   // 24 - 4 szabad (TRAIL B4/B5/B6, keret B2)
+  assert(assigned == 23);   // csak a keret B2 kiosztatlan
 }
 
 static void test_sender_basic() {
@@ -169,11 +174,48 @@ static void test_sender_request_and_conflict() {
   assert(s.press(20, 770) && tx.back().id == 0x1CE6FF91);
 }
 
+static void test_profiles() {
+  uint8_t c[24];
+  // Vontatott (saját): B3 rejtve, B4/B6 keret ikon, minden más be
+  mullerApplyProfile(PROF_TOWED_OWN, c);
+  assert(!mullerBtnActive(c, 2) && mullerBtnActive(c, 3) && mullerBtnActive(c, 4));
+  assert(mullerIconFor(c, 4) == MIcon::FoldIn && mullerIconFor(c, 5) == MIcon::FoldOut);
+  assert(!mullerBtnActive(c, 17));
+  assert(mullerProfileOf(c) == PROF_TOWED_OWN);
+  assert(mullerLayerVisible(c, 0) && mullerLayerVisible(c, 1) && mullerLayerVisible(c, 2));
+  // JB3 gyári: lakat be, B4/B6 tandem ikon
+  mullerApplyProfile(PROF_TOWED_JB3, c);
+  assert(mullerBtnActive(c, 2) && mullerIconFor(c, 4) == MIcon::AxleIn && mullerIconFor(c, 5) == MIcon::AxleOut);
+  assert(mullerProfileOf(c) == PROF_TOWED_JB3);
+  assert(strcmp(mullerLabelFor(c, 4, true), "Axle \xE2\x86\x92\xE2\x86\x90") == 0);
+  // Önjáró: TRAIL fül eltűnik, BOOT a maradék két fül közt vált
+  mullerApplyProfile(PROF_SELF, c);
+  for (int i = 0; i < 8; i++) assert(!mullerBtnActive(c, i));
+  assert(!mullerLayerVisible(c, 0) && mullerFirstVisible(c) == 1);
+  assert(mullerNextVisible(c, 1) == 2 && mullerNextVisible(c, 2) == 1 && mullerNextVisible(c, 0) == 1);
+  assert(mullerProfileOf(c) == PROF_SELF);
+  // szerkesztés: Be -> Alt -> Ki -> Be (B4), Be -> Ki -> Be (B5), kiosztatlan mindig Ki
+  mullerApplyProfile(PROF_TOWED_OWN, c);
+  assert(mullerNextState(c, 4) == BTN_ALT); c[4] = BTN_ALT;
+  assert(mullerNextState(c, 4) == BTN_OFF); c[4] = BTN_OFF;
+  assert(mullerNextState(c, 4) == BTN_ON);
+  assert(mullerNextState(c, 3) == BTN_OFF);
+  assert(mullerNextState(c, 17) == BTN_OFF);
+  assert(mullerProfileOf(c) == PROF_CUSTOM);   // c[4] = OFF -> egyéni
+  // minden ki: nincs látható fül
+  for (int i = 0; i < 24; i++) c[i] = BTN_OFF;
+  assert(mullerFirstVisible(c) == 0xFF && mullerNextVisible(c, 1) == 0xFF);
+  // csak egy fül: önmagára lép
+  c[9] = BTN_ON;
+  assert(mullerNextVisible(c, 1) == 1 && mullerFirstVisible(c) == 1);
+}
+
 int main() {
   test_layouts();
   test_touchfilter();
   test_name();
   test_funcs();
+  test_profiles();
   test_sender_basic();
   test_sender_request_and_conflict();
   puts("MINDEN TESZT OK");

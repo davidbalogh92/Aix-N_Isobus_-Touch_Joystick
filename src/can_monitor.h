@@ -33,4 +33,4 @@ bool canSend(uint32_t id, const uint8_t* data, uint8_t len);
 bool canBegin();
 void canLoop();
 const CanStats& canStats();
-const char* canStateText(CanState s);
+const char* canStateText(CanState s, bool hu = false);

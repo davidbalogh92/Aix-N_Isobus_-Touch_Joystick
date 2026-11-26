@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFont
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 SIZES = [13, 16, 22, 40]
 
-CHARS = [chr(c) for c in range(32, 127)] + list("ÁÉÍÓÖŐÚÜŰáéíóöőúüű°")
+CHARS = [chr(c) for c in range(32, 127)] + list("ÁÉÍÓÖŐÚÜŰáéíóöőúüű°←→")
 
 
 def make_vlw(size: int) -> bytes:

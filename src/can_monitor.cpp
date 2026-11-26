@@ -125,12 +125,12 @@ void canLoop() {
 
 const CanStats& canStats() { return s_st; }
 
-const char* canStateText(CanState s) {
+const char* canStateText(CanState s, bool hu) {
   switch (s) {
-    case CanState::DriverFail:   return "CAN: driver hiba";
-    case CanState::NoTraffic:    return "CAN: nincs forgalom";
+    case CanState::DriverFail:   return hu ? "CAN: driver hiba" : "CAN: driver error";
+    case CanState::NoTraffic:    return hu ? "CAN: nincs forgalom" : "CAN: no traffic";
     case CanState::Ok:           return "CAN: OK";
-    case CanState::ErrorPassive: return "CAN: hibás busz";
+    case CanState::ErrorPassive: return hu ? "CAN: hibás busz" : "CAN: bus errors";
     case CanState::BusOff:       return "CAN: BUS-OFF";
   }
   return "CAN: ?";
