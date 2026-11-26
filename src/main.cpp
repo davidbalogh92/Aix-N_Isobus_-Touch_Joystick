@@ -215,7 +215,8 @@ static void doCalibrate() {
   drawCentered("a sarkokban lévő nyilak hegyét", SCREEN_W / 2, 152, font_hu16, C_DIM, C_BG);
   delay(1500);
   forgetFont();
-  lcd.calibrateTouch(g_set.cal, TFT_WHITE, C_BG, 20);
+  const uint16_t fg = RGB565(255, 255, 255), bg = C_BG;
+  lcd.calibrateTouch(g_set.cal, fg, bg, 20);
   lcd.setTouchCalibrate(g_set.cal);
   g_set.calValid = true;
   settingsSave();
