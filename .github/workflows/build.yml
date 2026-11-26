@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,7 +45,24 @@ jobs:
           cp $B/firmware.bin dist/AuxN_TouchJoy_E32R28T_v${VER}_APP_OTA.bin
           ls -la dist
 
+      # A .bin-ek GitHub Release-be kerülnek (nem számít bele az artifact tárhely-kvótába).
+      # Minden FW_VERSION-hoz egy release (vX.Y.Z); újrafordításkor a fájlok felülíródnak.
+      - name: Release (bin fájlok)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER=$(grep -oP 'FW_VERSION\s+"\K[^"]+' src/config.h)
+          if gh release view "v$VER" >/dev/null 2>&1; then
+            gh release upload "v$VER" dist/*.bin --clobber
+          else
+            gh release create "v$VER" dist/*.bin --title "v$VER" --target "$GITHUB_SHA" \
+              --notes "Automatikus build. Első égetés: *_FULL_0x0.bin a 0x0 címre (Espressif online flasher)."
+          fi
+
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: AuxN_TouchJoy_firmware
           path: dist/*.bin
+          retention-days: 3

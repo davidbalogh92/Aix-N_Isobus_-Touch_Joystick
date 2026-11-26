@@ -47,7 +47,7 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 
 ## Firmware letöltése, égetése
 
-A GitHub Actions minden push után lefordítja a firmware-t: **Actions** fül → legutóbbi „Firmware build” → **Artifacts** → `AuxN_TouchJoy_firmware`.
+A GitHub Actions minden push után lefordítja a firmware-t, és a .bin fájlokat a **Releases** részbe teszi (repó főoldal, jobb oldalt → Releases → legfrissebb verzió → Assets).
 
 - `..._FULL_0x0.bin`: első égetéshez, az Espressif online flasherrel, **0x0** címre
 - `..._APP_OTA.bin`: csak az alkalmazás (későbbi OTA-hoz)
