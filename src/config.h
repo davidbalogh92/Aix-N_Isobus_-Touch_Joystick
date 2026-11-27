@@ -8,7 +8,7 @@
 // =============================================================
 
 #define FW_NAME     "AUX-N Touch Joystick"
-#define FW_VERSION  "0.7.1"
+#define FW_VERSION  "0.7.2"
 #define FW_CREDIT   "Készítette: Balogh Dávid & Claude"
 
 #if !defined(BOARD_E32R35T) && !defined(BOARD_E32R28T)
