@@ -24,6 +24,9 @@
 - `src/muller_funcs.h`: Müller funkciótábla (ikon, felirat), `src/muller_icons.h`: ikonok (sablon, PC-n is renderelhető)
 - `test/native_test.cpp`: natív tesztek (CI futtatja). Ikon/képernyő változás után frissítsd a `docs/muller_elonezet.png`-t (tools/icon_preview.*)
 - `src/light_logic.h`: fényérzékelő (R21 LDR) csatornaválasztás, szint, simítás (natívan tesztelt). A láb nem dokumentált: betanításkor IO34/IO39 × 11dB/0dB közül választ
+- `src/ota.*`: WiFi OTA (AP `AUXN-Joy-XXXX` / `auxnjoy1`, feltöltő oldal, csak 0xE9 kezdetű app kép), csak a Frissítés képernyőn él; WiFi alapból KI
+- `src/splash_art.h`: nyitókép grafika (sablon), előnézet: docs/nyitokep_elonezet.png
+- Rezgőmotor: félretéve a Waveshare-es változathoz (a felhasználó döntése)
 - `src/fonts_hu.h`: GENERÁLT (`python3 tools/make_vlw.py`), ne szerkeszd kézzel
 
 ## Müller mód

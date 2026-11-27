@@ -5,12 +5,14 @@ A kijelző a „gombsor”: 3, 6 vagy 8 gombos elrendezés, fölé cserélhető,
 
 *Készítette: Balogh Dávid & Claude*
 
-## Állapot: 0.7.0
+## Állapot: 0.7.1
 
 - **AUX-N mód** (alap): még nem jelentkezik be a terminálra, és nem küld semmit (hardver ébresztés, 1. fázis).
 - **Müller (ME) mód** (Beállítások → Mód): a gyári Müller permetező joystick AUX-O üzeneteit küldi, közvetlenül a Müller Jobcomputernek. JB3 stílus (sötét gombok, zöld nyilak), 3 színes fül (TRAIL piros / SPRAY sárga / BOOM zöld) + 8 gomb a joystick formájában. Szabad kiosztás: 3 fül × 8 hely, bármelyik helyre bármelyik Müller funkció (vagy üres); a fülnevek listából választhatók (TRAIL, SPRAY, BOOM, 1, 2, 3, MAIN, EXTRA). Alap: a gyári Müller kiosztás. Az üres fül eltűnik. Nyelv: English / Magyar. Terv: [docs/TERV_muller_mod.md](docs/TERV_muller_mod.md)
 
 ![Müller mód előnézet](docs/muller_elonezet.png)
+
+![Nyitókép](docs/nyitokep_elonezet.png)
 
 Közös alapok:
 
@@ -65,7 +67,16 @@ Bekötés: [docs/HARDVER.md](docs/HARDVER.md)
 A GitHub Actions minden push után lefordítja a firmware-t, és a .bin fájlokat a **Releases** részbe teszi (repó főoldal, jobb oldalt → Releases → legfrissebb verzió → Assets).
 
 - `..._FULL_0x0.bin`: első égetéshez, az Espressif online flasherrel, **0x0** címre
-- `..._APP_OTA.bin`: csak az alkalmazás (későbbi OTA-hoz)
+- `..._APP_OTA.bin`: WiFi-s frissítéshez (v0.7.1-től)
+
+### Frissítés WiFi-n (OTA)
+
+1. Beállítások → Funkciók >> → **Frissítés (WiFi)**. A joystick saját WiFi-t indít (`AUXN-Joy-XXXX`, jelszó: `auxnjoy1`), a kijelzőn QR-kód is van a csatlakozáshoz.
+2. Telefonról / laptopról csatlakozz, nyisd meg a `http://192.168.4.1` címet.
+3. Válaszd ki az **`_APP_OTA.bin`** fájlt, és töltsd fel. (A `FULL` fájlt elutasítja.) Hibátlan feltöltés után újraindul az új verzióval; hiba esetén a régi marad.
+4. A WiFi csak ezen a képernyőn él: Mégse, BOOT, vagy 10 perc tétlenség után kikapcsol. A beállítások megmaradnak.
+
+Az első OTA-képes verziót (v0.7.1) még kábellel kell feltölteni.
 
 Soros konzol: 115200 baud (gombnyomások, CAN statisztika 5 mp-enként).
 

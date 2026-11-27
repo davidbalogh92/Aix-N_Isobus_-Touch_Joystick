@@ -33,7 +33,7 @@ Részletek: [TERV_aux_ikonok.md](TERV_aux_ikonok.md). Első kör: a saját 3 gé
 
 - Hozzárendelés-lehallgatás (Auxiliary Assignment Type 2 a busz forgalmából): a kijelző mutatja, melyik bemenetre van funkció kiosztva, és jelzi, ha rejtett (pl. 3 gombos módban a 7-es) bemenetnek van hozzárendelése
 - Keretfelismerés: mágnes a keretben + 2 Hall-szenzor → automatikus 3/6/8 váltás
-- Rezgőmotor (haptikus visszajelzés)
+- Rezgőmotor (haptikus visszajelzés): **félretéve a Waveshare-es változathoz** (ott LRA + DRV2605 I2C-n). A 3,5" ESP32-32E-n az egyetlen szabad kimenet az IO32 lenne (ERM modul), de ez a felhasználó döntése szerint nem kerül bele.
 
 ## 4. fázis: végleges hardver
 

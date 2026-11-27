@@ -22,6 +22,8 @@
 #include "muller_layout.h"
 #include "muller_icons.h"
 #include "light_logic.h"
+#include "splash_art.h"
+#include "ota.h"
 
 #define RGB565(r, g, b) (uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
 
@@ -109,10 +111,10 @@ static uint32_t s_lastTouchMs = 0;
 // beállítások: 2 oldal, azonosítók
 enum SetId : uint8_t {
   S_CAL, S_ROT, S_BRIGHT, S_BEEP, S_LANG, S_INV, S_BGR, S_PANEL, S_MORE, S_EXIT,
-  S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_LIGHT, S_BACK,
+  S_MODE, S_PROFILE, S_EDIT, S_KEYS, S_CANINFO, S_LIGHT, S_OTA, S_BACK,
 };
 static const SetId SET_PAGE0[] = {S_CAL, S_ROT, S_BRIGHT, S_BEEP, S_LANG, S_INV, S_BGR, S_PANEL, S_MORE, S_EXIT};
-static const SetId SET_PAGE1[] = {S_MODE, S_EDIT, S_PROFILE, S_KEYS, S_CANINFO, S_LIGHT, S_BACK};
+static const SetId SET_PAGE1[] = {S_MODE, S_EDIT, S_PROFILE, S_KEYS, S_CANINFO, S_LIGHT, S_OTA, S_BACK};
 static uint8_t s_setPage = 0;
 static KeyRect s_setRects[10];
 static uint8_t s_setCount = 0;
@@ -240,6 +242,8 @@ struct LcdIconGfx {
   void text(const char* str, int cx, int cy, float u, uint16_t fg, uint16_t bg) {
     drawCentered(str, cx, cy, u < 7 ? font_hu13 : font_hu16, fg, bg);
   }
+  void fillCircle(int x, int y, int r, uint16_t c) { lcd.fillCircle(x, y, r, c); }
+  void roundRect(int x, int y, int w, int h, int r, uint16_t c) { lcd.fillRoundRect(x, y, w, h, r, c); }
 };
 
 static int16_t tabH() { return SH() >= 300 ? 46 : 38; }
@@ -432,6 +436,7 @@ static void settingLabel(SetId id, char* buf, size_t n) {
     case S_KEYS:    snprintf(buf, n, tr("AUX-N keys: %u", "AUX-N gomb: %u"), g_set.layout); break;
     case S_CANINFO: snprintf(buf, n, "CAN info"); break;
     case S_LIGHT:   snprintf(buf, n, "%s", tr("Light sensor", "Fényérzékelő")); break;
+    case S_OTA:     snprintf(buf, n, "%s", tr("Update (WiFi)", "Frissítés (WiFi)")); break;
     case S_BACK:    snprintf(buf, n, "%s", tr("<< Back", "<< Vissza")); break;
   }
 }
@@ -513,17 +518,43 @@ static void blinkPanelCode(bool st7789) {
   }
 }
 
+// Nyitókép: "mindenhez kapcsolódik" grafika (splash_art.h) + név, szlogen, verzió, kredit
 static void splash() {
   lcd.fillScreen(C_BG);
-  const int16_t cy = SH() / 2;
-  drawCentered("AUX-N", SW() / 2, cy - 72, font_hu40, C_KEY_ON, C_BG);
-  drawCentered("Touch Joystick", SW() / 2, cy - 32, font_hu22, C_TEXT, C_BG);
-  drawCentered("v" FW_VERSION "  " BOARD_NAME, SW() / 2, cy - 6, font_hu16, C_DIM, C_BG);
-  drawCentered(tr("Touch 1 s: calibrate", "Érintés 1 mp: kalibrálás"), SW() / 2, cy + 30, font_hu16, C_DIM, C_BG);
-#if !defined(BOARD_E32R35T)
-  drawCentered(tr("BOOT 2 s: panel type", "BOOT 2 mp: panel váltás"), SW() / 2, cy + 52, font_hu16, C_DIM, C_BG);
+  SplashColors k{C_BG, RGB565(50, 120, 90), RGB565(44, 48, 56), RGB565(90, 96, 108), C_WHITE,
+                 C_IBLUE, C_IGREEN, C_KEY_ON, C_LAYER_ON[0], C_LAYER_ON[1]};
+  LcdIconGfx g;
+  const bool port = SH() > SW();
+  const char* tag1 = tr("One touch.", "Egy érintés -");
+  const char* tag2 = tr("Every implement.", "minden munkagép.");
+  if (port) {
+    drawSplashArt(g, SW() / 2, (int)(SH() * 0.40f), (int)(SW() * 0.36f), k);
+    int16_t ty = (int16_t)(SH() * 0.78f);
+    drawCentered("AUX-N", SW() / 2, ty, font_hu40, C_KEY_ON, C_BG);
+    drawCentered("Touch Joystick", SW() / 2, ty + 34, font_hu22, C_TEXT, C_BG);
+    char tl[48];
+    snprintf(tl, sizeof(tl), "%s %s", tag1, tag2);
+    drawFit(tl, SW() / 2, ty + 58, SW() - 8, C_DIM, C_BG);
+    drawCentered("v" FW_VERSION, SW() / 2, ty + 76, font_hu13, C_DIM, C_BG);
+  } else {
+    drawSplashArt(g, (int)(SW() * 0.30f), (int)(SH() * 0.46f), (int)(SH() * 0.33f), k);
+    int16_t tx = (int16_t)(SW() * 0.76f), ty = (int16_t)(SH() * 0.28f);
+    drawCentered("AUX-N", tx, ty, font_hu40, C_KEY_ON, C_BG);
+    drawCentered("Touch Joystick", tx, ty + 36, font_hu22, C_TEXT, C_BG);
+    drawFit(tag1, tx, ty + 64, SW() / 2 - 8, C_DIM, C_BG);
+    drawFit(tag2, tx, ty + 84, SW() / 2 - 8, C_DIM, C_BG);
+    drawCentered("v" FW_VERSION, tx, ty + 110, font_hu13, C_DIM, C_BG);
+  }
+  // kis tipp a bal felső sarokban
+  useFont(font_hu13);
+  lcd.setTextColor(RGB565(90, 95, 105), C_BG);
+  lcd.setTextDatum(lgfx::textdatum::top_left);
+#if defined(BOARD_E32R35T)
+  lcd.drawString(tr("Touch 1 s: calibrate", "Érintés 1 mp: kalibrálás"), 4, 3);
+#else
+  lcd.drawString(tr("Touch 1 s: calibrate  BOOT 2 s: panel", "Érintés 1 mp: kalibr.  BOOT 2 mp: panel"), 4, 3);
 #endif
-  drawCredit(SH() - 24, C_TEXT);
+  drawCentered(FW_CREDIT, SW() / 2, SH() - 11, font_hu13, C_DIM, C_BG);
 
   uint32_t t0 = millis(), touchT0 = 0, bootT0 = 0;
   bool wantCal = false;
@@ -820,6 +851,128 @@ static void showLightSensor() {
   delay(100);
 }
 
+// =============================================================
+//  WiFi OTA frissítés képernyő
+// =============================================================
+static void showOta() {
+  int32_t tx, ty;
+  while (lcd.getTouch(&tx, &ty)) delay(10);
+  setActiveKey(-1);
+  bool mullerWas = (s_muller.state() != MullerAuxOSender::State::Off);
+  s_muller.stop(millis());              // frissítés alatt nincs Müller küldés
+  otaStart();
+  const OtaStatus& st = otaStatus();
+
+  lcd.fillScreen(C_BG);
+  drawHeader(tr("Firmware update (WiFi)", "Firmware frissítés (WiFi)"), "v" FW_VERSION);
+  const int16_t gap = 6, bh = (SH() >= 400) ? 52 : 40;
+  KeyRect cancel = {gap, (int16_t)(SH() - bh - gap), (int16_t)(SW() - 2 * gap), bh};
+  lcd.fillRoundRect(cancel.x, cancel.y, cancel.w, cancel.h, 8, RGB565(70, 50, 50));
+  drawCentered(tr("Cancel (WiFi off)", "Mégse (WiFi ki)"), SW() / 2, cancel.y + bh / 2, font_hu16, C_WHITE,
+               RGB565(70, 50, 50));
+
+  // szöveg + QR (WiFi csatlakozás)
+  const bool port = SH() > SW();
+  char wifiQr[80];
+  snprintf(wifiQr, sizeof(wifiQr), "WIFI:S:%s;T:WPA;P:%s;;", st.ssid, st.pass);
+  int16_t qrSize = port ? 150 : 120;
+  int16_t qrX = port ? (SW() - qrSize) / 2 : SW() - qrSize - 10;
+  int16_t qrY = port ? (int16_t)(STATUS_H + 120) : (int16_t)(STATUS_H + 10);
+  lcd.fillRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12, C_WHITE);
+  lcd.qrcode(wifiQr, qrX, qrY, qrSize, 3);
+
+  char l[3][48];
+  snprintf(l[0], 48, "WiFi: %s", st.ssid);
+  snprintf(l[1], 48, tr("Password: %s", "Jelszó: %s"), st.pass);
+  snprintf(l[2], 48, tr("Open: http://192.168.4.1", "Böngésző: http://192.168.4.1"));
+  useFont(font_hu16);
+  lcd.setTextDatum(lgfx::textdatum::middle_left);
+  for (int i = 0; i < 3; i++) {
+    lcd.setTextColor(i == 2 ? C_KEY_ON : C_TEXT, C_BG);
+    lcd.drawString(l[i], 10, STATUS_H + 20 + i * 26);
+  }
+  if (!port) {
+    drawCentered(tr("Upload the _APP_OTA.bin", "Az _APP_OTA.bin-t töltsd fel"), (SW() - qrSize) / 2, STATUS_H + 110,
+                 font_hu13, C_DIM, C_BG);
+  } else {
+    drawCentered(tr("Scan to join WiFi, then upload", "Szkenneld be, majd töltsd fel"), SW() / 2, qrY + qrSize + 18,
+                 font_hu13, C_DIM, C_BG);
+    drawCentered(tr("the _APP_OTA.bin file", "az _APP_OTA.bin fájlt"), SW() / 2, qrY + qrSize + 34, font_hu13, C_DIM, C_BG);
+  }
+
+  const int16_t statY = port ? (int16_t)(cancel.y - 52) : (int16_t)(cancel.y - 56);
+  const int16_t barW = port ? SW() - 20 : SW() - qrSize - 40;
+  TouchFilter tf({TOUCH_PRESS_STABLE_MS, TOUCH_RELEASE_MS, TOUCH_STABLE_RADIUS, TOUCH_JUMP_RADIUS});
+  uint32_t lastDraw = 0, lastTouch = 0;
+  OtaState lastState = OtaState::Off;
+  bool exitReq = false;
+
+  while (!exitReq) {
+    uint32_t now = millis();
+    otaLoop();
+    canLoop();
+    fbLoop();
+    if (digitalRead(PIN_BOOT) == LOW && st.state != OtaState::Receiving) exitReq = true;
+    if (now - lastTouch >= TOUCH_SAMPLE_MS) {
+      lastTouch = now;
+      bool t = lcd.getTouch(&tx, &ty);
+      if (tf.update(t, (int16_t)tx, (int16_t)ty, now) && !tf.pressed() && !tf.blocked() &&
+          layoutHitTest(&cancel, 1, tf.x(), tf.y(), 0) == 0 && st.state != OtaState::Receiving)
+        exitReq = true;
+    }
+    // 10 perc tétlenség -> WiFi ki
+    if (st.state != OtaState::Receiving && now - st.lastActivityMs > 10UL * 60UL * 1000UL) {
+      Serial.println("[OTA] 10 perc tétlenség, WiFi ki");
+      exitReq = true;
+    }
+    if (now - lastDraw >= 250 || st.state != lastState) {
+      lastDraw = now;
+      lastState = st.state;
+      char s1[64];
+      uint16_t col = C_DIM;
+      switch (st.state) {
+        case OtaState::Ready:
+          snprintf(s1, sizeof(s1), tr("Waiting... devices: %u", "Várakozás... eszközök: %u"), st.clients);
+          col = st.clients ? C_OK : C_DIM;
+          break;
+        case OtaState::Receiving:
+          snprintf(s1, sizeof(s1), tr("Receiving: %lu kB", "Fogadás: %lu kB"), (unsigned long)(st.received / 1024));
+          col = C_WARN;
+          break;
+        case OtaState::Done:
+          snprintf(s1, sizeof(s1), "%s", tr("Done - restarting", "Kész - újraindul"));
+          col = C_OK;
+          break;
+        case OtaState::Error:
+          snprintf(s1, sizeof(s1), "%s: %s", tr("Error", "Hiba"), st.msg);
+          col = C_ERR;
+          break;
+        default:
+          s1[0] = 0;
+      }
+      lcd.fillRect(0, statY - 12, port ? SW() : SW() - qrSize - 20, 46, C_BG);
+      drawFit(s1, port ? SW() / 2 : (SW() - qrSize - 20) / 2, statY, barW, col, C_BG);
+      lcd.drawRect(10, statY + 14, barW, 14, C_KEY_EDGE);
+      uint32_t pct = 0;
+      if (st.state == OtaState::Done) pct = 100;
+      else if (st.total > 0) pct = (uint32_t)((uint64_t)st.received * 100 / st.total);
+      if (pct > 100) pct = 100;
+      lcd.fillRect(11, statY + 15, (int32_t)(barW - 2) * pct / 100, 12, st.state == OtaState::Error ? C_ERR : C_OK);
+      if (st.state == OtaState::Done) {
+        fbBeep(2000, 150);
+        delay(1500);
+        otaStop();
+        ESP.restart();
+      }
+    }
+    delay(2);
+  }
+  otaStop();
+  while (lcd.getTouch(&tx, &ty) || digitalRead(PIN_BOOT) == LOW) delay(10);
+  if (mullerWas) applyMode();
+  delay(100);
+}
+
 static void showRestart() {
   settingsSave();
   lcd.fillScreen(C_BG);
@@ -921,6 +1074,10 @@ static void settingAction(uint8_t i) {
       return;
     case S_LIGHT:
       showLightSensor();
+      drawSettings();
+      return;
+    case S_OTA:
+      showOta();
       drawSettings();
       return;
   }
