@@ -12,7 +12,7 @@ struct SplashColors {
   uint16_t bg, line, node, nodeEdge, fg, blue, green, orange, red, yellow;
 };
 
-namespace splash {
+namespace splashart {
 
 template <class G>
 inline void seeder(G& g, float cx, float cy, float u, uint16_t c) {
@@ -79,12 +79,12 @@ inline void joystick(G& g, float cx, float cy, float u, const SplashColors& k) {
   g.fillCircle((int)(cx + 1.4f * u), (int)(cy - 0.85f * u), (int)(0.45f * u + 1), k.green);
 }
 
-}  // namespace splash
+}  // namespace splashart
 
 // A teljes kompozíció: középpont (cx, cy), R = a csomópontok köre
 template <class G>
 inline void drawSplashArt(G& g, int cx, int cy, int R, const SplashColors& k) {
-  using namespace splash;
+  using namespace splashart;
   const int N = 6;
   const float nodeR = R * 0.27f;
   float u = nodeR / 6.0f;
