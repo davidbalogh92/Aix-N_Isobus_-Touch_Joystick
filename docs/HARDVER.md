@@ -42,6 +42,10 @@ Pin kiosztások forrása: lcdwiki.com (3.5inch / 2.8inch ESP32-32E Display).
 | RGB LED, hang, BOOT | mint a 3.5"-on |
 | CAN TX / RX | 27 (SPI csatl. CS) / 35 (Expand) |
 
+## Flash partíciók
+
+`min_spiffs.csv` (v0.7.1-től): 2 × 1,9 MB alkalmazás (OTA), 128 kB SPIFFS. Az NVS (beállítások) a 0x9000 címen van, mint a korábbi `default.csv`-ben, ezért a váltáskor a beállítások megmaradnak. Partíciós tábla csak kábeles (`FULL_0x0.bin`) égetéssel változik.
+
 ## Közös tudnivalók
 
 - Csatlakozó: 1,25 mm-es, PicoBlade-kompatibilis (pl. Hestore JT-A1250H-4P-300, -2P-300).
